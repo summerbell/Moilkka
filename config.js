@@ -5,10 +5,10 @@
 // (이 값들은 공개돼도 괜찮은 웹 앱 식별자예요. 접근 제어는 firestore.rules가 맡아요.)
 
 window.FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyD2PRzHf5yIQgycHOTtbeCUHSNgjtGd8i8",
+  authDomain: "moilkka-97db9.firebaseapp.com",
+  projectId: "moilkka-97db9",
+  storageBucket: "moilkka-97db9.firebasestorage.app",
+  messagingSenderId: "548429216027",
+  appId: "1:548429216027:web:c5d9d8c75bb64719aa7bbe"
 };

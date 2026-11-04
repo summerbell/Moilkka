@@ -1,10 +1,10 @@
 /* Project board (?p=<id>): loads the project, listens to its people and meetings, and wires up the clicks */
 import { $, PID, BASE, TODAY_K, esc, dot, store, toast, narrow, monthsBetween } from '../util.js';
 import { readProject, remember, forget } from '../projects.js';
-import { S, PEOPLE, K_ME, K_NAME, K_PLACE, inRange, monthOf, colsNow, idFor, bgLv, xMode } from './state.js';
+import { S, PEOPLE, K_ME, K_NAME, K_LENS, inRange, monthOf, colsNow, idFor, xMode, forgetDerived } from './state.js';
 import { renderAll, renderGate, renderPeople, renderTabs, renderMonth, renderTools, select, step, scrollToDetail } from './view.js';
-import { bindGrid, toggleDay, clearAllX, setMode, anywhere } from './paint.js';
-import { switchPlace, editPlaces, bindPlaces } from './places.js';
+import { bindGrid, toggleDay, clearAllX } from './paint.js';
+import { setLens, editPlaces, bindPlaces } from './places.js';
 import { watchMeets, onMeetClick, bindMeets, closeTop } from './meets.js';
 
 const MISSING = '프로젝트를 찾을 수 없어요. 링크가 맞는지 확인하거나, 링크를 보낸 사람에게 다시 받아 주세요.';
@@ -12,9 +12,6 @@ const crumb = () => '<a class="crumb" href="' + esc(BASE) + '">모일까</a>';
 
 export function init() {
   $('#eyebrow').innerHTML = crumb() + ' · 1시간 단위 일정 조율';
-  /* legend + tool swatch for "unavailable" use the same hatch as the grid */
-  for (let i = 1; i <= 6; i++) $('#lgR' + i).style.background = bgLv(0, i);
-  $('#toolNoSw').style.background = bgLv(0, 4);
   bindGrid(); bindPlaces(); bindMeets();
   document.addEventListener('click', onClick);
   $('#joinForm').addEventListener('submit', (e) => { e.preventDefault(); join($('#nick').value); });
@@ -34,8 +31,11 @@ function showStatus(msg, back) {
 
 function setProject(p) {
   const first = !S.proj;
+  const lensName = first ? store.get(K_LENS) : S.PLACES[S.lens];
+  if (first || p.places.join('\n') !== S.PLACES.join('\n')) forgetDerived();
   S.proj = p; S.START_K = p.start; S.END_K = p.end; S.MAX = p.max; S.MONTHS = monthsBetween(p.start, p.end); S.PLACES = p.places;
-  if (!S.PLACES.includes(S.place)) { const saved = store.get(K_PLACE); S.place = S.PLACES.includes(saved) ? saved : S.PLACES[0]; }
+  /* the lens follows its place by name, so it survives places being renamed around it */
+  S.lens = S.PLACES.length > 1 ? S.PLACES.indexOf(lensName) : -1;
   if (first) { S.sel = inRange(TODAY_K) ? TODAY_K : S.START_K; S.gateOpen = !S.me; }
   else if (!inRange(S.sel)) S.sel = S.sel < S.START_K ? S.START_K : S.END_K;
   S.monthIdx = monthOf(S.sel);
@@ -101,9 +101,10 @@ function watchPeople() {
       if (typeof v.name !== 'string') return;
       const at = {};
       Object.keys(obj(v.at)).forEach((pl) => { at[pl] = obj(v.at[pl]); });
-      next.set(d.id, { id: d.id, name: v.name.slice(0, 24), joinedAt: Number(v.joinedAt) || 0, days: obj(v.days), pl: obj(v.pl), at });
+      next.set(d.id, { id: d.id, name: v.name.slice(0, 24), joinedAt: Number(v.joinedAt) || 0, slots: v.slots ? obj(v.slots) : null, days: obj(v.days), pl: obj(v.pl), at });
     });
     S.people = next;
+    forgetDerived();
     if (!snap.metadata.fromCache) { clearTimeout(timer); if (S.dbState === 'connecting' || S.dbState === 'slow') S.dbState = 'ready'; }
     if (S.me && S.people.has(S.me)) { S.myName = S.people.get(S.me).name; store.set(K_NAME, S.myName); }
     if (S.me && !S.people.has(S.me) && !snap.metadata.fromCache && !S.joining && !S.writing) { toast('내 자리가 비워져서 다시 들어와야 해요.'); leave(); return; }
@@ -116,11 +117,11 @@ function openGate() { S.gateOpen = true; S.gateMsg = ''; renderGate(); setTimeou
 function setMe(id, name) {
   S.me = id; S.myName = name || (S.people.get(id) && S.people.get(id).name) || S.myName;
   store.set(K_ME, S.me); store.set(K_NAME, S.myName);
-  S.gateOpen = false; S.gateMsg = ''; S.committed = {}; S.plOv = {}; S.saveState = '';
+  S.gateOpen = false; S.gateMsg = ''; S.committed = {}; S.saveState = '';
   renderAll();
 }
 function leave() {
-  S.me = null; S.myName = ''; S.committed = {}; S.plOv = {}; S.saveState = '';
+  S.me = null; S.myName = ''; S.committed = {}; S.saveState = '';
   store.set(K_ME, null); store.set(K_NAME, null);
   renderAll(); openGate();
 }
@@ -189,13 +190,8 @@ function onClick(e) {
   if (ds.mode) { S.mode = ds.mode; store.set('six.mode', S.mode); if (S.focus && !colsNow().includes(S.focus.k)) S.focus = null; renderAll(); return; }
   if (ds.view) { if (ds.view === 'mine' && !S.me) return; S.view = ds.view; store.set('six.view', S.view); renderAll(); return; }
   if (ds.tool) { S.tool = ds.tool; S.confirmClearX = false; store.set('six.tool', S.tool); renderTools(); renderMonth(); return; }
-  if (ds.place) { switchPlace(ds.place); return; }
-  if (ds.pmode) { setMode(S.place, ds.pmode); renderAll(); return; }
-  if (ds.rec) {
-    if (ds.pl && S.PLACES.includes(ds.pl)) { S.place = ds.pl; store.set(K_PLACE, ds.pl); }
-    dayView(ds.rec, +ds.h); scrollToDetail();
-    return;
-  }
+  if (ds.lens != null) { setLens(ds.lens); return; }
+  if (ds.rec) { dayView(ds.rec, +ds.h); scrollToDetail(); return; }
   if (ds.join) { setMe(ds.join); return; }
   if (ds.del) { S.confirmDel = ds.del; renderPeople(); return; }
   if (ds.delYes) { removePerson(ds.delYes); return; }
@@ -210,7 +206,6 @@ function onClick(e) {
     case 'clear-x': S.confirmClearX = true; renderTools(); break;
     case 'clear-x-yes': clearAllX(); break;
     case 'clear-x-no': S.confirmClearX = false; renderTools(); break;
-    case 'anywhere': anywhere(); renderAll(); break;
     case 'pl-edit': editPlaces(true); break;
     case 'pl-cancel': editPlaces(false); break;
   }

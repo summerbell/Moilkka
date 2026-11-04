@@ -1,6 +1,6 @@
-/* Painting the grid, the whole-day tool, place modes, and saving my changes in as few writes as possible */
-import { $, EMPTY, FULLN, pad, sleep, toast, withJ } from '../util.js';
-import { S, PEOPLE, TOOLV, inRange, isBase, modeOf, storedDays, layerStr, paintLayer, baseStr, dayKeys, canPaintHere, colsNow } from './state.js';
+/* Painting the grid with place brushes, the whole-day tool, and saving my changes in as few writes as possible */
+import { $, EMPTY, FULLN, pad, sleep, toast } from '../util.js';
+import { S, PEOPLE, ALL, maskOf, maskChar, inRange, baseStr, dayKeys, storedSlots, canPaint, colsNow } from './state.js';
 import { renderAll, renderSave, updateCells, refreshInfo, infoHtml } from './view.js';
 
 /* ---------- saving ---------- */
@@ -9,10 +9,8 @@ export function setSave(s) {
   if (s === 'saved') { const n = new Date(); S.saveAt = pad(n.getHours()) + ':' + pad(n.getMinutes()); }
   renderSave();
 }
-const into = (o, k) => o[k] || (o[k] = {});
-function queueWrite(L, ch) { Object.assign(into(S.pendingW, L), ch); flush(); }
-/* show a change at once and save it; L is the layer ('' = base place) */
-function setMine(L, ch) { Object.assign(into(S.committed, L), ch); queueWrite(L, ch); }
+/* show a change at once and save it */
+function setMine(ch) { Object.assign(S.committed, ch); Object.assign(S.pendingW, ch); flush(); }
 
 function handleWriteErr(e) {
   const code = e && e.code;
@@ -24,20 +22,14 @@ function handleWriteErr(e) {
 }
 export async function flush() {
   if (S.writing || !S.DB || !S.me) return;
-  /* everything waiting goes out as one merge into my document: days, at.<place> and pl */
-  const data = {}, sent = {};
-  Object.keys(S.pendingW).forEach((L) => {
-    const m = S.pendingW[L]; delete S.pendingW[L];
-    if (!Object.keys(m).length) return;
-    sent[L] = m;
-    if (L) into(data, 'at')[L] = m; else data.days = m;
-  });
-  const pls = Object.assign({}, S.pendingPl);
-  Object.keys(pls).forEach((pl) => { delete S.pendingPl[pl]; });
-  if (Object.keys(pls).length) data.pl = pls;
-  if (!Object.keys(data).length) return;
+  const ch = Object.assign({}, S.pendingW);
+  Object.keys(ch).forEach((k) => { delete S.pendingW[k]; });
+  if (!Object.keys(ch).length) return;
+  const p = S.people.get(S.me);
+  /* the first save on the new sheet carries everything converted from the old one */
+  const data = { slots: p && !p.slots ? Object.assign({}, storedSlots(S.me), ch) : ch };
   /* recreate my document if someone emptied my seat */
-  if (!S.people.has(S.me)) Object.assign(data, { name: S.myName, joinedAt: Date.now(), days: data.days || {} });
+  if (!p) Object.assign(data, { name: S.myName, joinedAt: Date.now(), days: {} });
   S.writing = true; setSave('saving');
   const ref = S.DB.collection(PEOPLE).doc(S.me);
   let ok = false;
@@ -48,55 +40,30 @@ export async function flush() {
       try { await ref.merge(data); ok = true; } catch (e2) { handleWriteErr(e2); }
     } else handleWriteErr(e);
   }
-  Object.keys(sent).forEach((L) => Object.keys(sent[L]).forEach((k) => {
-    const c = S.committed[L];
-    if (c && c[k] === sent[L][k] && !(S.pendingW[L] && k in S.pendingW[L])) delete c[k];
-  }));
-  Object.keys(pls).forEach((pl) => { if (S.plOv[pl] === pls[pl] && !(pl in S.pendingPl)) delete S.plOv[pl]; });
+  Object.keys(ch).forEach((k) => { if (S.committed[k] === ch[k] && !(k in S.pendingW)) delete S.committed[k]; });
   S.writing = false;
   if (ok) setSave('saved');
   renderAll();
-  if (Object.keys(S.pendingW).length || Object.keys(S.pendingPl).length) flush();
+  if (Object.keys(S.pendingW).length) flush();
 }
 
-/* ---------- place modes ---------- */
-export function setMode(pl, m) {
-  const was = modeOf(S.me, pl);
-  if (!S.me || isBase(pl) || was === m) return;
-  const P = withJ(pl, '은', '는');
-  let ch = null;
-  if (m === 'own' && was === 'same') {
-    /* keep what was on screen: an empty layer starts as a copy of the base, one painted before comes back as it was */
-    const own = Object.assign({}, storedDays(S.me, pl), S.committed[pl] || {});
-    if (Object.values(own).some((s) => typeof s === 'string' && s.length === 24 && s !== EMPTY)) toast(pl + '에 따로 칠해 두었던 시간을 다시 불러왔어요.');
-    else {
-      ch = {};
-      dayKeys(S.me, S.PLACES[0]).forEach((k) => { const s = layerStr(S.me, k, S.PLACES[0]); if (s !== EMPTY) ch[k] = s; });
-      toast(P + ' 따로 칠해요. ' + S.PLACES[0] + '에 칠한 시간을 옮겨 두었으니 다른 부분만 고치세요.');
-    }
-  } else if (m === 'own') toast(P + ' 따로 칠해요.');
-  S.plOv[pl] = m; S.pendingPl[pl] = m;
-  if (ch && Object.keys(ch).length) { Object.assign(into(S.committed, pl), ch); Object.assign(into(S.pendingW, pl), ch); }
-  S.preview = null; S.confirmClearX = false;
-  flush();
+/* ---------- painting ----------
+   A place brush adds its place to the hours dragged over, or takes it away when the drag starts on an hour that
+   already has it; places stack, so one hour can be 서울·대전. "어디든" does every place at once, "불가" marks
+   hours that work nowhere, "지우기" clears. */
+function brushOp(tool, c0) {
+  const m = tool.match(/^pl(\d)$/);
+  if (m) { const bit = 1 << +m[1]; return { bit, add: !(maskOf(c0) & bit) }; }
+  if (tool === 'any') return { bit: ALL(), add: maskOf(c0) !== ALL() };
+  if (tool === 'no') return { set: c0 === 'n' ? '.' : 'n' };
+  return { set: '.' };
 }
-/* painting a place that reuses the base (or isn't decided yet) gives it its own layer first */
-export function ensureOwn() {
-  const m = modeOf(S.me);
-  if (m === 'base' || m === 'own') return true;
-  if (m === 'no') return false;
-  setMode(S.place, 'own');
-  return true;
+function applyOp(c, op) {
+  if (op.set) return op.set;
+  if (op.add) return maskChar(maskOf(c) | op.bit);
+  /* taking a place away leaves "불가" and empty hours alone */
+  return maskOf(c) ? maskChar(maskOf(c) & ~op.bit) : c;
 }
-/* "장소 무관": every other place follows the base */
-export function anywhere() {
-  if (!S.me) return;
-  let n = 0;
-  S.PLACES.slice(1).forEach((pl) => { if (modeOf(S.me, pl) !== 'same') { S.plOv[pl] = 'same'; S.pendingPl[pl] = 'same'; n++; } });
-  if (n) { flush(); toast('모든 장소를 ' + withJ(S.PLACES[0], '과', '와') + ' 같게 했어요.'); }
-}
-
-/* ---------- painting ---------- */
 function buildPreview() {
   const d = S.drag;
   const c0 = Math.min(d.a.c, d.b.c), c1 = Math.max(d.a.c, d.b.c);
@@ -105,24 +72,21 @@ function buildPreview() {
   for (let c = c0; c <= c1; c++) {
     const k = d.cols[c];
     if (!k || !inRange(k)) continue;
-    if (d.whole) { S.preview[k] = d.val; continue; }
+    if (d.whole) { S.preview[k] = d.whole; continue; }
     const s = baseStr(k).split('');
-    for (let h = h0; h <= h1; h++) s[h] = d.val;
+    for (let h = h0; h <= h1; h++) s[h] = applyOp(s[h], d.op);
     S.preview[k] = s.join('');
   }
 }
 function commit() {
-  const ch = {}, L = paintLayer();
-  if (S.preview && L != null) for (const k in S.preview) if (S.preview[k] !== baseStr(k)) ch[k] = S.preview[k];
+  const ch = {};
+  if (S.preview) for (const k in S.preview) if (S.preview[k] !== baseStr(k)) ch[k] = S.preview[k];
   S.drag = null; S.preview = null;
-  if (Object.keys(ch).length) setMine(L, ch);
+  if (Object.keys(ch).length) setMine(ch);
   renderAll();
 }
-/* my crossed-out days at this place, including ones not saved yet */
-function myXDays() {
-  if (paintLayer() == null) return [];
-  return dayKeys(S.me).filter((k) => inRange(k) && baseStr(k) === FULLN).sort();
-}
+/* my crossed-out days, including ones not saved yet */
+function myXDays() { return dayKeys(S.me).filter((k) => inRange(k) && baseStr(k) === FULLN).sort(); }
 export function clearXHtml() {
   const n = myXDays().length;
   if (!n) { S.confirmClearX = false; return ''; }
@@ -134,12 +98,12 @@ export function clearAllX() {
   S.confirmClearX = false;
   const ch = {}, days = myXDays();
   days.forEach((k) => { ch[k] = EMPTY; });
-  if (days.length) { setMine(paintLayer(), ch); toast('종일 불가 ' + days.length + '일을 모두 풀었어요.'); }
+  if (days.length) { setMine(ch); toast('종일 불가 ' + days.length + '일을 모두 풀었어요.'); }
   renderAll();
 }
 export function toggleDay(k) {
-  if (!inRange(k) || !ensureOwn()) return;
-  setMine(paintLayer(), { [k]: baseStr(k) === FULLN ? EMPTY : FULLN });
+  if (!inRange(k)) return;
+  setMine({ [k]: baseStr(k) === FULLN ? EMPTY : FULLN });
   renderAll();
 }
 
@@ -153,16 +117,12 @@ export function bindGrid() {
     if (!cell || cell.classList.contains('off')) return;
     const k = cell.dataset.k, h = +cell.dataset.h, c = +cell.dataset.c;
     S.focus = { k, h };
-    if (S.tool === 'look' || !canPaintHere()) { updateCells(); refreshInfo(); return; }
+    if (S.tool === 'look' || !canPaint()) { updateCells(); refreshInfo(); return; }
     e.preventDefault();
     try { gw.setPointerCapture(e.pointerId); } catch (err) {}
     /* "종일 불가" drags across days and ignores the hours; it toggles off when it starts on a day already crossed out */
-    const whole = S.tool === 'xday';
-    /* the drag exists before ensureOwn so the redraw its save triggers keeps the layout still */
-    S.drag = { id: e.pointerId, a: { c, h }, b: { c, h }, val: '.', whole, cols: colsNow() };
-    ensureOwn();
-    if (whole) S.drag.val = baseStr(k) === FULLN ? EMPTY : FULLN;
-    else { const v = TOOLV[S.tool]; S.drag.val = v !== '.' && baseStr(k)[h] === v ? '.' : v; }
+    const whole = S.tool === 'xday' ? (baseStr(k) === FULLN ? EMPTY : FULLN) : '';
+    S.drag = { id: e.pointerId, a: { c, h }, b: { c, h }, whole, op: whole ? null : brushOp(S.tool, baseStr(k)[h]), cols: colsNow() };
     buildPreview(); updateCells(); refreshInfo();
   });
   gw.addEventListener('pointermove', (e) => {

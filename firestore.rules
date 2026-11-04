@@ -4,8 +4,8 @@ rules_version = '2';
 // - 프로젝트(projects)는 관리자만 만들고, 고치고(장소 후보), 지우고, 전체 목록을 볼 수 있어요.
 //   관리자 = Firestore의 admins 컬렉션에 자기 UID로 된 문서가 있는 Google 계정이에요. (README 3단계)
 // - 프로젝트 하나를 읽는 건 누구나 할 수 있어요. 프로젝트 ID를 알아야 하니 링크(?p=…)가 곧 열쇠예요.
-// - 참여자(people)는 로그인 없이 칠할 수 있고, 문서 모양(name / joinedAt / days / pl / at)이 맞을 때만 저장돼요.
-//   days = 기본 장소에 칠한 시간, pl = 다른 장소마다 같음/따로/못 감, at = 다른 장소에 따로 칠한 시간
+// - 참여자(people)는 로그인 없이 칠할 수 있고, 문서 모양(name / joinedAt / days / pl / at / slots)이 맞을 때만 저장돼요.
+//   slots = 날짜마다 시간별로 갈 수 있는 장소(또는 불가). days / pl / at 은 예전 방식으로 칠한 기록이에요.
 // - 일정(meets)은 누구나 볼 수 있고, 관리자만 잡고 고치고 지울 수 있어요. who = 참가자 { 참여자ID: 이름 }
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -34,11 +34,12 @@ service cloud.firestore {
     }
     function validPerson() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['name', 'joinedAt', 'days', 'pl', 'at'])
+      return d.keys().hasOnly(['name', 'joinedAt', 'days', 'pl', 'at', 'slots'])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 24
         && d.days is map && d.days.size() <= 400
         && (!('pl' in d) || (d.pl is map && d.pl.size() <= 12))
-        && (!('at' in d) || (d.at is map && d.at.size() <= 12));
+        && (!('at' in d) || (d.at is map && d.at.size() <= 12))
+        && (!('slots' in d) || (d.slots is map && d.slots.size() <= 400));
     }
     function validMeet() {
       let d = request.resource.data;

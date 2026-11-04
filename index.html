@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>모일까</title>
-<meta name="description" content="모일까 · 프로젝트마다 선호 시간과 안 되는 시간을 함께 칠하는 일정 조율표">
+<meta name="description" content="모일까 · 프로젝트마다 장소별로 되는 시간과 안 되는 시간을 함께 칠하는 일정 조율표">
 <script src="config.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,7 +37,7 @@
           <label class="fld">종료일<input id="cEnd" class="input" type="date"></label>
         </div>
         <label class="fld">최대 인원<input id="cMax" class="input" type="number" min="2" max="12" value="6" inputmode="numeric"></label>
-        <label class="fld">장소 후보 (쉼표로 나눠 4곳까지 · 첫 번째가 기본)<input id="cPlaces" class="input" maxlength="80" value="서울, 대전, 기타" placeholder="예: 서울, 대전, 기타"></label>
+        <label class="fld">장소 후보 (쉼표로 나눠 4곳까지)<input id="cPlaces" class="input" maxlength="80" value="서울, 대전, 기타" placeholder="예: 서울, 대전, 기타"></label>
         <p class="gate-msg" id="cMsg" role="alert"></p>
         <button class="btn primary" id="cBtn" type="submit">만들기</button>
       </form>
@@ -55,13 +55,14 @@
     <section class="card placebar" id="placebar" aria-label="장소" hidden>
       <div class="pb-row" id="pbRow"></div>
       <form class="pb-row pb-edit" id="plForm" autocomplete="off" novalidate hidden>
-        <label class="sr" for="plInput">장소 후보</label>
-        <input id="plInput" class="input" maxlength="80" placeholder="예: 서울, 대전, 기타">
+        <input class="input plIn" maxlength="12" aria-label="장소 1" placeholder="장소 1">
+        <input class="input plIn" maxlength="12" aria-label="장소 2" placeholder="장소 2">
+        <input class="input plIn" maxlength="12" aria-label="장소 3" placeholder="장소 3">
+        <input class="input plIn" maxlength="12" aria-label="장소 4" placeholder="장소 4 (선택)">
         <button class="mini" type="submit">저장</button>
         <button class="mini ghost" type="button" data-act="pl-cancel">취소</button>
         <p class="pb-note" id="plMsg"></p>
       </form>
-      <div class="pb-me" id="pbMe"></div>
     </section>
 
     <div class="rail">
@@ -69,14 +70,7 @@
         <div class="tabs" id="tabs" role="tablist" aria-label="달 선택"></div>
         <p class="xhint" id="xhint" hidden>날짜를 누르면 그날이 ✕ 종일 불가로 표시되고, 다시 누르면 풀려요.</p>
         <div class="mgrid" id="month"></div>
-        <div class="legend">
-          <div class="lg-row"><b>선호</b><span class="ramp"><i style="background:var(--g1)"></i><i style="background:var(--g2)"></i><i style="background:var(--g3)"></i><i style="background:var(--g4)"></i><i style="background:var(--g5)"></i><i style="background:var(--g6)"></i></span><span class="mono" id="lgMaxP">1 → 6명</span></div>
-          <div class="lg-row"><b>불가</b><span class="ramp"><i id="lgR1"></i><i id="lgR2"></i><i id="lgR3"></i><i id="lgR4"></i><i id="lgR5"></i><i id="lgR6"></i></span><span class="mono" id="lgMaxN">1 → 6명</span></div>
-          <div class="lg-row"><span class="sw split"></span>선호와 불가가 겹친 칸 <span class="sw ring"></span>내가 칠한 칸</div>
-          <div class="lg-row"><span class="mono"><span class="i-go">○3</span> <span class="i-no">✕1</span></span><span id="lgOx">날짜별 선호 시간이 있는 사람 · 종일 불가인 사람 수</span></div>
-          <div class="lg-row"><span class="sw xsw"></span>내가 종일 불가로 표시한 날 <span class="sw meetsw"></span>일정 잡힌 날·시간</div>
-          <p id="lgNote">칸이 진할수록 같은 표시를 한 사람이 많아요. 날짜 아래 막대는 그날 0시부터 24시까지예요.</p>
-        </div>
+        <div class="legend" id="legend"></div>
       </section>
 
       <section class="sec mine" id="mineSec" aria-labelledby="mineTitle" hidden>
@@ -92,7 +86,7 @@
       </section>
 
       <section class="sec recs" aria-labelledby="recTitle">
-        <div class="sec-head"><h3 id="recTitle">추천 시간</h3><span class="hint" id="recHint">불가 0명 · 선호 많은 순</span></div>
+        <div class="sec-head"><h3 id="recTitle">추천 시간</h3><span class="hint" id="recHint"></span></div>
         <ol class="rlist" id="recs"></ol>
       </section>
     </div>
@@ -117,13 +111,7 @@
           </div>
         </div>
       </div>
-      <div class="tools" role="group" aria-label="칠하기 도구">
-        <button type="button" class="tool" data-tool="pref"><span class="sw" style="background:var(--go)"></span>선호</button>
-        <button type="button" class="tool" data-tool="no"><span class="sw" id="toolNoSw"></span>불가</button>
-        <button type="button" class="tool" data-tool="xday"><span class="sw xday"></span>종일 불가</button>
-        <button type="button" class="tool" data-tool="erase"><span class="sw erase"></span>지우기</button>
-        <button type="button" class="tool" data-tool="look"><span class="sw look"></span>보기</button>
-      </div>
+      <div class="tools" id="tools" role="group" aria-label="칠하기 붓"></div>
       <p class="hintline" id="hint"></p>
       <div class="info" id="info" aria-live="polite"></div>
       <div class="gw" id="gw"></div>
@@ -171,7 +159,7 @@
       <div class="whopick" id="mWho"></div>
       <div class="pickacts" id="mWhoActs">
         <button type="button" class="mini" data-act="pick-all">모두</button>
-        <button type="button" class="mini" data-act="pick-yes">이 시간 선호한 사람만</button>
+        <button type="button" class="mini" data-act="pick-yes">이 시간 되는 사람만</button>
         <button type="button" class="mini ghost" data-act="pick-none">모두 빼기</button>
       </div>
     </div>

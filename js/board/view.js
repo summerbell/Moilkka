@@ -1,9 +1,10 @@
-/* Drawing the board: month calendar, week/day grid, my marks, roster, suggested slots, entry gate */
-import { $, WD, EMPTY, FULLN, pad, ymd, fromKey, addDays, TODAY_K, esc, initial, coarse, reduced, withJ } from '../util.js';
+/* Drawing the board: month calendar, week/day grid, brushes, my marks, roster, suggested slots, entry gate */
+import { $, WD, EMPTY, FULLN, pad, ymd, fromKey, addDays, TODAY_K, esc, initial, coarse, reduced } from '../util.js';
 import { HOLI } from '../holidays.js';
 import {
-  S, inRange, weekStartK, monthOf, colsNow, sortedPeople, ids, nameOf, isBase, modeOf, modeLabel, mineStr, strOf, dayKeys,
-  counts, xWho, who, bgFor, bgLv, MINE_LV, mineView, canJoin, canPaintHere, xMode, meetHours
+  S, inRange, weekStartK, monthOf, colsNow, sortedPeople, ids, nameOf, mineStr, strOf, dayKeys, tally, xWho, who,
+  ALL, maskOf, hasPlace, missesPlace, placeVar, placeInk, maskBg, maskInk, maskLabel, cellBg, mineBg, bgLv,
+  mineView, canJoin, canPaint, xMode, meetHours
 } from './state.js';
 import { clearXHtml } from './paint.js';
 import { renderPlaces } from './places.js';
@@ -11,17 +12,31 @@ import { renderMeets } from './meets.js';
 
 const mdLabel = (d) => (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
 const dayHead = (d) => mdLabel(d) + '<span class="rw"> (' + WD[d.getDay()] + ')</span>';
-const tally = (s, ch) => { let c = 0; for (let i = 0; i < 24; i++) if (s[i] === ch) c++; return c; };
-/* '..pppp..' → ['2–6시'] */
-function ranges(s, ch) {
+const multi = () => S.PLACES.length > 1;
+/* the place the board is about: the lens, or the only place there is */
+const lensPlace = () => (S.lens >= 0 ? S.lens : multi() ? -1 : 0);
+const dot = (bg) => '<i class="pdot" style="background:' + bg + '"></i>';
+/* '..1111..' → [['1', 2, 6]] */
+function runs(s) {
   const out = [];
   for (let h = 0; h < 24; h++) {
-    if (s[h] !== ch) continue;
-    let e = h; while (e + 1 < 24 && s[e + 1] === ch) e++;
-    out.push(h + '–' + (e + 1) + '시'); h = e;
+    const c = s[h]; if (c === '.') continue;
+    let e = h; while (e + 1 < 24 && s[e + 1] === c) e++;
+    out.push([c, h, e + 1]); h = e;
   }
   return out;
 }
+/* people with any hour at each place that day */
+function dayCounts(k) {
+  const c = S.PLACES.map(() => 0);
+  ids().forEach((id) => {
+    let mk = 0;
+    for (const ch of strOf(id, k)) mk |= maskOf(ch);
+    S.PLACES.forEach((_, i) => { if (mk & (1 << i)) c[i]++; });
+  });
+  return c;
+}
+const digits = (arr) => arr.map((x, i) => '<i' + (x ? ' style="color:' + placeInk(i) + '"' : ' class="z"') + '>' + x + '</i>').join('·');
 
 export function renderWho() {
   const el = $('#whoami');
@@ -49,7 +64,7 @@ export function renderMonth() {
   const [y, m] = S.MONTHS[S.monthIdx];
   const first = new Date(y, m, 1), dim = new Date(y, m + 1, 0).getDate();
   const wk = new Set(S.mode === 'week' ? colsNow() : []);
-  const mv = mineView(), mh = meetHours(), meNo = modeOf(S.me) === 'no';
+  const mv = mineView(), mh = meetHours(), L = lensPlace();
   let h = WD.map((w, i) => '<span class="wdh' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</span>').join('');
   for (let i = 0; i < first.getDay(); i++) h += '<span></span>';
   for (let d = 1; d <= dim; d++) {
@@ -58,29 +73,36 @@ export function renderMonth() {
     let ox = '', strip = '', mex = false;
     if (!off) {
       const xs = xWho(k);
-      /* "can't go to this place" crosses out every day; the place bar already says so, so skip my cross there */
-      mex = !!S.me && !meNo && xs.includes(S.me);
+      mex = !!S.me && xs.includes(S.me);
+      const xtxt = xs.length ? '<span class="x">✕' + xs.length + '</span>' : '';
       if (mv) {
         const s = mineStr(k);
-        for (let i = 0; i < 24; i++) strip += '<i style="background:' + (bgLv(s[i] === 'p' ? MINE_LV : 0, s[i] === 'n' ? MINE_LV : 0) || 'transparent') + '"></i>';
+        for (let i = 0; i < 24; i++) strip += '<i style="background:' + (mineBg(s[i]) || 'transparent') + '"></i>';
         if (s === FULLN) { ox = '<span class="x">✕종일</span>'; lab += ', 내가 종일 불가'; }
         else {
-          const pc = tally(s, 'p'), nc = tally(s, 'n');
+          let pc = 0, nc = 0;
+          for (const c of s) { if (c === 'n') nc++; else if (c !== '.') pc++; }
           ox = (pc ? '<span class="o">○' + pc + '</span>' : '') + (nc ? '<span class="x">✕' + nc + '</span>' : '');
-          lab += (pc ? ', 내 선호 ' + pc + '시간' : '') + (nc ? ', 내 불가 ' + nc + '시간' : '');
+          lab += (pc ? ', 내가 되는 시간 ' + pc + '시간' : '') + (nc ? ', 내 불가 ' + nc + '시간' : '');
         }
       } else {
-        /* ○ = people with any preferred hour that day, ✕ = people out for the whole day */
-        const os = ids().filter((id) => strOf(id, k).includes('p')).length, c = counts(k);
-        for (let i = 0; i < 24; i++) strip += '<i style="background:' + (bgFor(c.p[i], c.n[i]) || 'transparent') + '"></i>';
-        ox = (os ? '<span class="o">○' + os + '</span>' : '') + (xs.length ? '<span class="x">✕' + xs.length + '</span>' : '');
-        lab += (os ? ', 선호 있는 사람 ' + os + '명' : '') + (xs.length ? ', 종일 불가 ' + xs.length + '명' : '');
+        const t = tally(k), dc = dayCounts(k);
+        for (let i = 0; i < 24; i++) strip += '<i style="background:' + (cellBg(t, i) || 'transparent') + '"></i>';
+        if (L >= 0) {
+          /* ○ = people who can make this place some time that day, ✕ = people out for the whole day */
+          ox = (dc[L] ? '<span class="o">○' + dc[L] + '</span>' : '') + xtxt;
+          lab += (dc[L] ? ', 올 수 있는 사람 ' + dc[L] + '명' : '');
+        } else {
+          ox = (dc.some(Boolean) ? '<span class="pc">' + digits(dc) + '</span>' : '') + xtxt;
+          lab += dc.some(Boolean) ? ', ' + S.PLACES.map((pl, i) => pl + ' ' + dc[i] + '명').join(', ') : '';
+        }
+        lab += xs.length ? ', 종일 불가 ' + xs.length + '명' : '';
       }
       if (xMode()) lab += ', 누르면 종일 불가 ' + (mex ? '해제' : '표시');
     }
     const cls = ['md', (dow === 0 || hol) ? 'sun' : '', (dow === 6 && !hol) ? 'sat' : '', k === TODAY_K ? 'today' : '', k === S.sel ? 'sel' : '',
       (wk.has(k) && k !== S.sel) ? 'inweek' : '', mex ? 'mex' : '', mh[k] ? 'hasmeet' : ''].filter(Boolean).join(' ');
-    h += '<button type="button" class="' + cls + '" data-day="' + k + '"' + (off ? ' disabled' : '') + ' aria-label="' + lab + '"' + (k === S.sel ? ' aria-current="date"' : '') + '>' +
+    h += '<button type="button" class="' + cls + '" data-day="' + k + '"' + (off ? ' disabled' : '') + ' aria-label="' + esc(lab) + '"' + (k === S.sel ? ' aria-current="date"' : '') + '>' +
       '<span class="mdn">' + d + '</span>' + (hol ? '<span class="mdh">' + hol + '</span>' : '') +
       (off ? '' : '<span class="mdc" aria-hidden="true">' + ox + '</span><span class="strip" aria-hidden="true">' + strip + '</span>') + '</button>';
   }
@@ -88,73 +110,73 @@ export function renderMonth() {
 }
 
 function renderLegend() {
-  const mv = mineView();
-  $('#lgMaxP').textContent = mv ? '내 선호' : '1 → ' + S.MAX + '명';
-  $('#lgMaxN').textContent = mv ? '내 불가' : '1 → ' + S.MAX + '명';
-  $('#lgOx').textContent = mv ? '날짜별 내 선호 · 불가 시간 수' : '날짜별 선호 시간이 있는 사람 · 종일 불가인 사람 수';
-  $('#lgNote').textContent = mv ? '지금은 내가 칠한 것만 보여요. 모두의 표시를 보려면 시간표 위의 ‘모두’를 누르세요.'
-    : '칸이 진할수록 같은 표시를 한 사람이 많아요. 날짜 아래 막대는 그날 0시부터 24시까지예요.';
+  const mv = mineView(), L = lensPlace(), P = esc(S.PLACES[Math.max(0, L)]);
+  const item = (sw, label) => '<span class="lgp">' + sw + label + '</span>';
+  const common = '<div class="lg-row">' + item('<span class="sw ring"></span>', '내가 칠한 칸') + item('<span class="sw xsw"></span>', '내가 종일 불가로 표시한 날') + item('<span class="sw meetsw"></span>', '일정 잡힌 날·시간') + '</div>';
+  const places = S.PLACES.map((pl, i) => '<span class="lgp">' + dot(placeVar(i)) + esc(pl) + '</span>').join('');
+  let h;
+  if (mv) {
+    h = '<div class="lg-row"><b>내 표시</b>' + (multi() ? places + '<span class="lgp">' + dot('var(--g4)') + '어디든</span>' : '<span class="lgp">' + dot('var(--go)') + '가능</span>') +
+      '<span class="lgp">' + dot(bgLv(0, 4)) + '불가</span></div>' +
+      '<div class="lg-row"><span class="mono"><span class="i-go">○3</span> <span class="i-no">✕1</span></span>날짜별 내가 되는 시간 · 안 되는 시간 수</div>' +
+      '<p>지금은 내가 칠한 것만 보여요. 여러 장소를 겹쳐 칠한 칸은 그 장소 색이 나눠져 보여요. 모두의 표시를 보려면 시간표 위의 ‘모두’를 누르세요.</p>';
+  } else if (L < 0) {
+    h = '<div class="lg-row"><b>장소</b>' + places + '<span class="lgp">' + dot('var(--g4)') + '어디나 같음</span></div>' +
+      '<div class="lg-row"><span class="mono lgd">' + digits(S.PLACES.map((_, i) => i + 2)) + '</span>칸마다 ' + S.PLACES.map(esc).join('·') + '에 올 수 있는 사람 수 (주 보기)</div>' + common +
+      '<div class="lg-row"><span class="sw" style="background:' + bgLv(0, 4) + '"></span>아무 데도 못 오는 사람만 있는 칸</div>' +
+      '<p>칸 색은 그 시간에 가장 많이 올 수 있는 장소예요(모든 장소가 같으면 초록). 진할수록 많이 와요. 날짜 아래 숫자는 그날 장소별로 올 수 있는 사람 수예요.</p>';
+  } else {
+    const ramp = (pre) => '<span class="ramp">' + [1, 2, 3, 4, 5, 6].map((i) => '<i style="background:' + (pre === 'g' ? 'var(--g' + i + ')' : bgLv(0, i)) + '"></i>').join('') + '</span>';
+    h = '<div class="lg-row"><b>가능</b>' + ramp('g') + '<span class="mono">1 → ' + S.MAX + '명</span></div>' +
+      '<div class="lg-row"><b>불가</b>' + ramp('r') + '<span class="mono">1 → ' + S.MAX + '명</span></div>' +
+      '<div class="lg-row"><span class="sw split"></span>올 수 있는 사람과 못 오는 사람이 섞인 칸</div>' + common +
+      '<div class="lg-row"><span class="mono"><span class="i-go">○3</span> <span class="i-no">✕1</span></span>날짜별 ' + (multi() ? P + '에 ' : '') + '올 수 있는 사람 · 종일 불가인 사람 수</div>' +
+      '<p>' + (multi() ? P + '에 올 수 있는 사람만 셌어요. ' : '') + '칸이 진할수록 같은 표시를 한 사람이 많아요. 날짜 아래 막대는 그날 0시부터 24시까지예요.</p>';
+  }
+  $('#legend').innerHTML = h;
 }
 
-/* "내 표시": what I painted at the current place, one line per day */
+/* "내 표시": what I painted, one line per day */
 export function renderMine() {
   const sec = $('#mineSec');
   sec.hidden = !mineView();
   if (sec.hidden) return;
-  const m = modeOf(S.me), P = S.place;
-  $('#mineTitle').textContent = '내 표시' + (S.PLACES.length > 1 ? ' · ' + P : '');
-  const days = m === 'no' ? [] : dayKeys(S.me).filter((k) => inRange(k) && mineStr(k) !== EMPTY).sort();
-  let sum = '';
-  if (m === 'no') sum = withJ(P, '은', '는') + ' 못 간다고 해 두었어요. 위의 장소 칸에서 바꿀 수 있어요.';
-  else if (m === '') sum = withJ(P, '은', '는') + ' 아직 안 정했어요. 위에서 고르거나 시간표에서 바로 칠하세요.';
-  else if (m === 'same') sum = withJ(P, '은', '는') + ' ‘' + modeLabel('same') + '’이라 ' + S.PLACES[0] + '에 칠한 시간이 그대로 보여요.';
-  else if (days.length) sum = '날짜를 누르면 그날 시간표로 가요.';
-  $('#mineSum').textContent = sum;
-  $('#mineSum').hidden = !sum;
+  const days = dayKeys(S.me).filter((k) => inRange(k) && mineStr(k) !== EMPTY).sort();
+  $('#mineSum').textContent = days.length ? '날짜를 누르면 그날 시간표로 가요.' : '';
+  $('#mineSum').hidden = !days.length;
   $('#mineCount').textContent = days.length ? days.length + '일' : '';
-  if (m === 'no') { $('#mineList').innerHTML = ''; return; }
   $('#mineList').innerHTML = !days.length
-    ? '<li class="empty">아직 칠한 시간이 없어요. 시간표에서 선호·불가를 칠하면 여기에 날짜별로 정리돼요.</li>'
+    ? '<li class="empty">아직 칠한 시간이 없어요. 시간표에서 붓을 골라 칠하면 여기에 날짜별로 정리돼요.</li>'
     : days.map((k) => {
-      const s = mineStr(k), go = ranges(s, 'p'), no = ranges(s, 'n');
+      const s = mineStr(k);
       const body = s === FULLN ? '<span class="i-no">✕ 종일 불가</span>'
-        : (go.length ? '<span class="i-go">선호 ' + go.join(', ') + '</span>' : '') + (no.length ? '<span class="i-no">불가 ' + no.join(', ') + '</span>' : '');
+        : runs(s).map(([c, a, b]) => '<span class="myr">' + dot(c === 'n' ? bgLv(0, 4) : maskBg(maskOf(c), 6)) + (c === 'n' ? '불가' : esc(maskLabel(maskOf(c)))) + ' ' + a + '–' + b + '시</span>').join('');
       return '<li><button type="button" class="myrow" data-myday="' + k + '"><span class="rd">' + dayHead(fromKey(k)) + '</span><span class="myh">' + body + '</span></button></li>';
     }).join('');
 }
 
-function placeTag(id) {
-  if (S.PLACES.length < 2) return '';
-  if (isBase(S.place)) return S.PLACES.slice(1).every((pl) => modeOf(id, pl) === 'same') ? '<span class="mtag same">장소 무관</span>' : '';
-  const m = modeOf(id);
-  return '<span class="mtag ' + (m || 'unset') + '">' + esc(modeLabel(m)) + '</span>';
-}
 export function renderPeople() {
-  const sp = sortedPeople(), P = esc(withJ(S.place, '은', '는'));
+  const sp = sortedPeople();
   $('#seatCount').textContent = sp.length + ' / ' + S.MAX;
   if (!sp.length) {
     $('#people').innerHTML = '<li class="empty">' + (S.dbState === 'ready' ? '아직 아무도 들어오지 않았어요. 닉네임으로 들어온 사람이 여기에 차례로 앉아요.' : '참여자 목록을 불러오는 중이에요.') + '</li>';
   } else {
     $('#people').innerHTML = sp.map((p) => {
-      const m = modeOf(p.id);
-      let stat;
-      if (m === 'no') stat = '<span class="i-no">' + P + ' 못 가요</span>';
-      else if (m === '') stat = P + ' 아직 안 정했어요';
-      else {
-        let pc = 0, nc = 0, xc = 0;
-        dayKeys(p.id).forEach((k) => {
-          if (!inRange(k)) return;
-          const s = strOf(p.id, k);
-          if (s === FULLN) { xc++; return; }
-          pc += tally(s, 'p'); nc += tally(s, 'n');
-        });
-        stat = '<span class="i-go">선호 ' + pc + '시간</span> · <span class="i-no">불가 ' + nc + '시간</span>' + (xc ? ' · <span class="i-no">종일 불가 ' + xc + '일</span>' : '');
-      }
+      const hp = S.PLACES.map(() => 0);
+      let nc = 0, xc = 0;
+      dayKeys(p.id).forEach((k) => {
+        if (!inRange(k)) return;
+        const s = strOf(p.id, k);
+        if (s === FULLN) { xc++; return; }
+        for (const c of s) { if (c === 'n') nc++; else S.PLACES.forEach((_, i) => { if (hasPlace(c, i)) hp[i]++; }); }
+      });
+      const can = multi() ? S.PLACES.map((pl, i) => '<span class="hp">' + dot(placeVar(i)) + esc(pl) + ' ' + hp[i] + '</span>').join(' ') : '<span class="i-go">가능 ' + hp[0] + '시간</span>';
+      const stat = can + ' · <span class="i-no">불가 ' + nc + '시간</span>' + (xc ? ' · <span class="i-no">종일 불가 ' + xc + '일</span>' : '');
       const act = S.confirmDel === p.id
         ? '<span class="confirm"><span>기록까지 지울까요?</span><button type="button" class="mini danger" data-del-yes="' + esc(p.id) + '">지우기</button><button type="button" class="mini" data-del-no="1">취소</button></span>'
         : (canJoin() ? '<button type="button" class="mini ghost" data-del="' + esc(p.id) + '" aria-label="' + esc(p.name) + ' 자리 비우기">자리 비우기</button>' : '');
       return '<li class="person"><span class="av" style="background:var(--p' + S.colorOf[p.id] + ')">' + esc(initial(p.name)) + '</span>' +
-        '<span class="pmeta"><span class="pname">' + esc(p.name) + (p.id === S.me ? '<span class="tag">나</span>' : '') + placeTag(p.id) + '</span>' +
+        '<span class="pmeta"><span class="pname">' + esc(p.name) + (p.id === S.me ? '<span class="tag">나</span>' : '') + '</span>' +
         '<span class="pstat">' + stat + '</span></span>' + act + '</li>';
     }).join('');
   }
@@ -164,47 +186,59 @@ export function renderPeople() {
   $('#seatsRow').innerHTML = left ? row + '<span>빈 자리 ' + left + '개</span>' : '<span>자리가 모두 찼어요.</span>';
 }
 
-/* slots where two or more people prefer the same hours and nobody is out, found at every place */
+/* slots where two or more people can make the same place, best place first; comparing places, each slot names
+   the place most people can make and how the others do */
 export function renderRecs() {
-  const multi = S.PLACES.length > 1, found = new Map();
-  S.PLACES.forEach((pl) => {
-    for (let d = fromKey(S.START_K); ymd(d) <= S.END_K; d = addDays(d, 1)) {
-      const k = ymd(d), c = counts(k, pl);
-      let h = 0;
-      while (h < 24) {
-        if (c.p[h] >= 2 && c.n[h] === 0) {
-          let e = h;
-          while (e + 1 < 24 && c.p[e + 1] === c.p[h] && c.n[e + 1] === 0) e++;
-          /* the same slot at several places (people who said "same") is listed once with all its places */
-          const key = k + '|' + h + '|' + (e + 1) + '|' + c.p[h], r = found.get(key);
-          if (r) r.pls.push(pl); else found.set(key, { k, s: h, e: e + 1, c: c.p[h], pls: [pl] });
-          h = e + 1;
-        } else h++;
-      }
+  const L = lensPlace(), pls = L >= 0 ? [L] : S.PLACES.map((_, i) => i), out = [];
+  for (let d = fromKey(S.START_K); ymd(d) <= S.END_K; d = addDays(d, 1)) {
+    const k = ymd(d), t = tally(k);
+    const vec = (h) => pls.map((i) => t.a[i][h]).join(','), best = (h) => Math.max(...pls.map((i) => t.a[i][h]));
+    let h = 0;
+    while (h < 24) {
+      const c = best(h);
+      if (c >= 2) {
+        let e = h;
+        while (e + 1 < 24 && vec(e + 1) === vec(h)) e++;
+        out.push({ k, s: h, e: e + 1, c, win: pls.filter((i) => t.a[i][h] === c), v: S.PLACES.map((_, i) => t.a[i][h]) });
+        h = e + 1;
+      } else h++;
     }
-  });
-  const out = [...found.values()].sort((a, b) => (b.c - a.c) || ((b.e - b.s) - (a.e - a.s)) || (a.k < b.k ? -1 : a.k > b.k ? 1 : a.s - b.s));
+  }
+  out.sort((a, b) => (b.c - a.c) || ((b.e - b.s) - (a.e - a.s)) || (a.k < b.k ? -1 : a.k > b.k ? 1 : a.s - b.s));
   const top = out.slice(0, 5), total = Math.max(ids().length, 1);
-  $('#recHint').textContent = '불가 0명 · 선호 많은 순' + (multi ? ' · 장소별' : '');
+  $('#recHint').textContent = !multi() ? '많이 올 수 있는 순' : L < 0 ? '시간마다 가장 많이 오는 장소' : S.PLACES[L] + ' 기준 · 많이 올 수 있는 순';
   if (!top.length) {
-    $('#recs').innerHTML = '<li class="empty">두 명 이상이 같은 시간을 선호하고 그 시간에 불가한 사람이 없으면 여기에 나와요.' + (multi ? ' 장소마다 따로 찾아요.' : '') + '</li>';
+    $('#recs').innerHTML = '<li class="empty">두 명 이상이 같은 시간에 ' + (multi() ? '같은 장소로 ' : '') + '올 수 있으면 여기에 나와요.</li>';
     return;
   }
+  const tag = (i) => '<span class="ptag pl">' + dot(placeVar(i)) + esc(S.PLACES[i]) + '</span>';
   $('#recs').innerHTML = top.map((r) => {
-    const pl = r.pls.includes(S.place) ? S.place : r.pls[0];
-    const tags = !multi ? '' : r.pls.length === S.PLACES.length ? '<span class="ptag">모든 장소</span>' : r.pls.map((x) => '<span class="ptag">' + esc(x) + '</span>').join('');
-    const all = r.c === total && total >= 2;
-    return '<li class="recrow"><button type="button" class="rec" data-rec="' + r.k + '" data-h="' + r.s + '" data-pl="' + esc(pl) + '">' +
-      '<span class="rd">' + dayHead(fromKey(r.k)) + tags + '</span>' +
+    const pl = S.PLACES[r.win[0]], all = r.c === total && total >= 2;
+    const others = L < 0 ? S.PLACES.map((_, i) => i).filter((i) => !r.win.includes(i)).map((i) => esc(S.PLACES[i]) + ' ' + r.v[i]).join(' · ') : '';
+    return '<li class="recrow"><button type="button" class="rec" data-rec="' + r.k + '" data-h="' + r.s + '">' +
+      '<span class="rd">' + dayHead(fromKey(r.k)) + '</span>' +
       '<span class="rt">' + pad(r.s) + ':00–' + pad(r.e) + ':00</span>' +
-      '<span class="rc">' + (all ? '<span class="all">모두</span>' : '<span class="dotg"></span>') + r.c + '/' + total + '명</span></button>' +
+      '<span class="rc">' + (all ? '<span class="all">모두</span>' : '<span class="dotg"></span>') + r.c + '/' + total + '명</span>' +
+      (multi() ? '<span class="rp">' + r.win.map(tag).join('') + (others ? '<span class="ro">' + others + '</span>' : '') + '</span>' : '') + '</button>' +
       (S.admin ? '<button type="button" class="mini" data-meet-rec="' + r.k + '|' + r.s + '|' + r.e + '|' + esc(pl) + '" aria-label="이 시간으로 일정 잡기">+ 일정</button>' : '') + '</li>';
   }).join('');
 }
 
+/* brushes: one per place (plus "어디든" when there are several), then 불가 / 종일 불가 / 지우기 / 보기 */
 export function renderTools() {
-  document.querySelectorAll('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === S.tool)));
-  const gw = $('#gw'), paint = canPaintHere();
+  const P = S.PLACES.length;
+  const tools = S.PLACES.map((_, i) => 'pl' + i).concat(P > 1 ? ['any'] : [], ['no', 'xday', 'erase', 'look']);
+  if (!tools.includes(S.tool)) S.tool = 'look';
+  const btn = (t, label, sw, tc) => '<button type="button" class="tool" data-tool="' + t + '" style="--tc:' + tc + '" aria-pressed="' + (S.tool === t) + '">' + sw + label + '</button>';
+  const sw = (bg, cls) => '<span class="sw' + (cls ? ' ' + cls : '') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '></span>';
+  const first = S.PLACES.map((pl, i) => btn('pl' + i, P > 1 ? esc(pl) : '가능', sw(placeVar(i)), placeInk(i))).join('') +
+    (P > 1 ? btn('any', P === 2 ? '둘 다' : '어디든', sw('var(--go)'), 'var(--go-ink)') : '');
+  const second = btn('no', '불가', sw(bgLv(0, 4)), 'var(--no)') + btn('xday', '종일 불가', sw('', 'xday'), 'var(--no)') +
+    btn('erase', '지우기', sw('', 'erase'), 'var(--ink)') + btn('look', '보기', sw('', 'look'), 'var(--ink)');
+  $('#tools').innerHTML = P > 1
+    ? '<div class="trow" style="--n:' + (P + 1) + '">' + first + '</div><div class="trow" style="--n:4">' + second + '</div>'
+    : '<div class="trow" style="--n:5">' + first + second + '</div>';
+  const gw = $('#gw'), paint = canPaint();
   gw.classList.toggle('paint', paint && S.tool !== 'look');
   gw.classList.toggle('look', !paint || S.tool === 'look');
   $('#hint').innerHTML = hint();
@@ -215,45 +249,62 @@ export function renderTools() {
 function hint() {
   if (!S.me) return '닉네임으로 들어오면 시간을 칠할 수 있어요. 지금은 칸을 눌러 누가 표시했는지 볼 수 있어요.';
   if (S.readonly) return '저장이 거부돼서 칠할 수 없어요. Firestore 규칙을 확인하세요. 칸을 누르면 누가 표시했는지 보여요.';
-  const m = modeOf(S.me), P = '<b>' + esc(S.place) + '</b>' + withJ(S.place, '은', '는').slice(-1);
-  if (m === 'no') return P + ' 못 간다고 해 두었어요. 칠하려면 위의 장소 칸에서 <b>따로 칠하기</b>를 고르세요. 칸을 누르면 누가 표시했는지 보여요.';
-  let pre = '';
-  if (S.tool !== 'look' && m === 'same') pre = P + ' 지금 ' + esc(withJ(S.PLACES[0], '과', '와')) + ' 같게 해 두었어요. 여기서 칠하면 ' + esc(S.place) + '만 따로 칠하게 돼요. ';
-  else if (S.tool !== 'look' && m === '') pre = P + ' 아직 안 정했어요. 위에서 고르거나 여기서 바로 칠하세요. ';
   const scroll = coarse() ? ' 화면을 내릴 땐 왼쪽 시간 눈금을 잡고 끌거나 <b>보기</b>로 바꾸세요.' : '';
+  const names = S.PLACES.map(esc).join('·'), m = S.tool.match(/^pl(\d)$/);
+  if (m) {
+    const pl = '<b>' + esc(S.PLACES[+m[1]]) + '</b>';
+    return (multi()
+      ? pl + '에 갈 수 있는 시간을 드래그로 칠하세요. 다른 장소와 겹쳐 칠할 수 있고, 이미 ' + pl + ' 표시가 있는 칸에서 시작하면 ' + pl + '만 빠져요.'
+      : '칸을 드래그해 <b>되는 시간</b>을 칠하세요. 이미 칠한 칸에서 시작하면 지워져요.') + scroll;
+  }
   const clearAll = S.tool === 'xday' ? clearXHtml() : '';
-  return pre + {
-    pref: '칸을 드래그해 <b>선호 시간</b>을 칠하세요. 이미 초록으로 칠한 칸에서 시작하면 지워져요.' + scroll,
-    no: '칸을 드래그해 <b>불가능한 시간</b>을 칠하세요. 이미 빨강으로 칠한 칸에서 시작하면 지워져요.' + scroll,
+  return {
+    any: '<b>어디서든</b> 되는 시간(' + names + ' 모두)을 칠하세요. 이미 그렇게 칠한 칸에서 시작하면 지워져요.' + scroll,
+    no: '<b>' + (multi() ? '어디서도 안 되는' : '안 되는') + ' 시간</b>을 칠하세요. 이미 불가로 칠한 칸에서 시작하면 지워져요.' + scroll,
     xday: '달력의 날짜나 시간표의 아무 칸을 누르면 그날 하루가 통째로 <b>종일 불가(✕)</b>가 돼요. ✕인 날을 다시 누르면 풀려요. 시간표에선 옆으로 드래그해 여러 날을 한 번에 표시할 수 있어요.' + scroll + (clearAll ? '<span class="hact">' + clearAll + '</span>' : ''),
-    erase: '드래그한 칸에서 <b>내 표시</b>만 지워요.' + scroll,
-    look: '칸을 누르면 누가 표시했는지 보여요. 이 모드에선 화면을 자유롭게 스크롤할 수 있어요.'
+    erase: '드래그한 칸에서 <b>내 표시</b>를 모두 지워요.' + scroll,
+    look: (multi() ? '칠하려면 먼저 위에서 붓을 고르세요. 그 시간에 갈 수 있는 곳(' + names + ')을 고르고, 아무 데나 되면 <b>어디든</b>이에요. ' : '칠하려면 위에서 <b>가능</b>이나 <b>불가</b>를 고르세요. ') +
+      '지금은 칸을 누르면 누가 표시했는지 보이고, 화면을 자유롭게 스크롤할 수 있어요.'
   }[S.tool];
 }
 
 export function infoHtml(k, h) {
-  const d = fromKey(k), w = who(k, h);
+  const d = fromKey(k), w = who(k, h), L = lensPlace();
   const t = '<b>' + (d.getMonth() + 1) + '/' + d.getDate() + ' (' + WD[d.getDay()] + ') ' + pad(h) + ':00–' + pad(h + 1) + ':00</b>';
-  if (!w.p.length && !w.n.length) return t + '<span class="muted">아직 아무도 표시하지 않았어요.</span>';
-  const tag = (id) => modeOf(id) === 'no' ? '<span class="xtag">✕' + esc(S.place) + ' 못 감</span>' : strOf(id, k) === FULLN ? '<span class="xtag">✕종일</span>' : '';
+  if (!w.n.length && w.at.every((a) => !a.length)) return t + '<span class="muted">아직 아무도 표시하지 않았어요.</span>';
+  const tag = (id) => (strOf(id, k) === FULLN ? '<span class="xtag">✕종일</span>' : '');
   const list = (arr) => arr.map((id) => esc(nameOf(id)) + (id === S.me ? '(나)' : '') + tag(id)).join(', ');
   let s = t;
-  if (w.p.length) s += '<span class="i-go">선호 ' + w.p.length + '명</span> ' + list(w.p) + ' ';
+  if (L >= 0) {
+    const pl = multi() ? esc(S.PLACES[L]) + ' ' : '', cant = ids().filter((id) => missesPlace(strOf(id, k)[h], L));
+    if (w.at[L].length) s += '<span class="i-go">' + pl + '가능 ' + w.at[L].length + '명</span> ' + list(w.at[L]) + ' ';
+    if (cant.length) s += '<span class="i-no">' + pl + '불가 ' + cant.length + '명</span> ' + list(cant);
+    return s;
+  }
+  w.at.forEach((arr, i) => { if (arr.length) s += '<span class="pinfo" style="color:' + placeInk(i) + '">' + esc(S.PLACES[i]) + ' ' + arr.length + '명</span> ' + list(arr) + ' '; });
   if (w.n.length) s += '<span class="i-no">불가 ' + w.n.length + '명</span> ' + list(w.n);
   return s;
 }
 export function refreshInfo() {
-  $('#info').innerHTML = S.focus ? infoHtml(S.focus.k, S.focus.h) : '<span class="muted">칸을 고르면 그 시간에 누가 선호하고 누가 안 되는지 여기에 나와요.</span>';
+  $('#info').innerHTML = S.focus ? infoHtml(S.focus.k, S.focus.h) : '<span class="muted">칸을 고르면 그 시간에 누가 어디로 올 수 있는지 여기에 나와요.</span>';
 }
 
-function chipsHtml(w) {
-  const one = (id, cls) => '<span class="chip ' + cls + (id === S.me ? ' me' : '') + '"><i style="background:var(--p' + (S.colorOf[id] || 1) + ')"></i>' + esc(nameOf(id)) + '</span>';
-  return w.p.map((id) => one(id, 'cp')).join('') + w.n.map((id) => one(id, 'cn')).join('');
+/* day view: a chip per person who marked the hour; comparing places, the chip says where they can go */
+function chipsHtml(k, h) {
+  const L = lensPlace(), only = mineView();
+  return ids().filter((id) => !only || id === S.me).map((id) => {
+    const c = strOf(id, k)[h];
+    if (c === '.') return '';
+    const no = L >= 0 ? missesPlace(c, L) : c === 'n';
+    const mk = maskOf(c), where = L < 0 && !no ? '<small>' + esc(mk === ALL() ? '어디든' : S.PLACES.filter((_, i) => mk & (1 << i)).map((pl) => [...pl][0]).join('·')) + '</small>' : '';
+    const border = no ? 'var(--no-ink)' : L >= 0 ? 'var(--go-ink)' : maskInk(mk);
+    return '<span class="chip' + (no ? ' cn' : '') + (id === S.me ? ' me' : '') + '" style="border-color:' + border + '"><i style="background:var(--p' + (S.colorOf[id] || 1) + ')"></i>' + esc(nameOf(id)) + where + '</span>';
+  }).join('');
 }
 
 export function renderDetail() {
   const cols = colsNow(), d0 = fromKey(cols[0]), d1 = fromKey(cols[cols.length - 1]);
-  const tail = (S.PLACES.length > 1 ? ' · ' + S.place : '') + (mineView() ? ' · 내 표시만' : '');
+  const tail = (multi() ? ' · ' + (S.lens < 0 ? '장소 비교' : S.PLACES[S.lens]) : '') + (mineView() ? ' · 내 표시만' : '');
   if (S.mode === 'week') {
     $('#dEyebrow').textContent = d0.getFullYear() + ' · 주간 보기' + tail;
     $('#dTitle').textContent = mdLabel(d0) + ' – ' + (d1.getMonth() !== d0.getMonth() ? (d1.getMonth() + 1) + '월 ' : '') + d1.getDate() + '일';
@@ -297,20 +348,22 @@ export function renderDetail() {
 }
 
 export function updateCells() {
-  const cache = {}, mv = mineView();
+  const cache = {}, mv = mineView(), L = lensPlace();
+  /* comparing places in the week grid, each cell also shows how many can make each place */
+  const nums = !mv && S.mode === 'week' && L < 0;
   document.querySelectorAll('#gw .c').forEach((el) => {
     if (el.classList.contains('off')) return;
     const k = el.dataset.k, h = +el.dataset.h;
     const m = S.me ? mineStr(k)[h] : '.';
-    if (mv) el.style.background = bgLv(m === 'p' ? MINE_LV : 0, m === 'n' ? MINE_LV : 0);
-    else { const cnt = cache[k] || (cache[k] = counts(k)); el.style.background = bgFor(cnt.p[h], cnt.n[h]); }
-    el.classList.toggle('mp', !mv && m === 'p');
-    el.classList.toggle('mn', !mv && m === 'n');
+    const t = mv ? null : cache[k] || (cache[k] = tally(k));
+    el.style.background = mv ? mineBg(m) : cellBg(t, h);
+    /* my ring: the colour of what I marked here */
+    el.classList.toggle('mp', !mv && m !== '.');
+    if (!mv && m !== '.') el.style.setProperty('--ring', m === 'n' || (L >= 0 && !hasPlace(m, L)) ? 'var(--no-ink)' : L >= 0 ? 'var(--go-ink)' : maskInk(maskOf(m)));
     el.classList.toggle('fx', !!S.focus && S.focus.k === k && S.focus.h === h);
-    if (S.mode === 'day' && el.firstElementChild) {
-      const w = who(k, h), only = (arr) => arr.filter((id) => id === S.me);
-      el.firstElementChild.innerHTML = chipsHtml(mv ? { p: only(w.p), n: only(w.n) } : w);
-    }
+    if (S.mode === 'day') { if (el.firstElementChild) el.firstElementChild.innerHTML = chipsHtml(k, h); return; }
+    const html = nums && t.a.some((x) => x[h]) ? '<span class="cd">' + digits(t.a.map((x) => x[h])) + '</span>' : '';
+    if (el._d !== html) { el.innerHTML = html; el._d = html; }
   });
 }
 
@@ -354,8 +407,7 @@ export function renderAll() {
   S.colorOf = {};
   sortedPeople().forEach((p, i) => { S.colorOf[p.id] = (i % 6) + 1; });
   if (S.me && !S.colorOf[S.me]) S.colorOf[S.me] = (S.people.size % 6) + 1;
-  /* mid-drag, nothing above the grid may change height (the place bar and hint do when a place gets its own layer),
-     or the cells would slide under the pointer; the drop redraws everything */
+  /* mid-drag, nothing above the grid may change height, or the cells would slide under the pointer; the drop redraws everything */
   if (S.drag) { renderMonth(); renderMine(); renderPeople(); renderRecs(); updateCells(); refreshInfo(); renderSave(); return; }
   renderWho(); renderMeets(); renderPlaces(); renderTabs(); renderMonth(); renderLegend(); renderMine(); renderPeople(); renderRecs(); renderTools();
   renderDetail();

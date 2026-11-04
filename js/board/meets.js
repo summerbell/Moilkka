@@ -2,13 +2,13 @@
    A meeting has a date, a start (and optional end) time and one of the project's places, and optionally a title
    (e.g. "보컬 연습"), the people attending, a venue name, a booking link, a photo and a memo. */
 import { $, WD, TODAY_K, fromKey, pad, esc, initial, isDayKey, newId, store, toast } from '../util.js';
-import { S, MEETS, K_PLACE, inRange, sortedPeople, nameOf, attends, slotStatus } from './state.js';
+import { S, MEETS, inRange, sortedPeople, nameOf, attends, slotStatus } from './state.js';
 import { renderAll, select, scrollToDetail } from './view.js';
 
 /* photos live inside the meeting document (Firebase Storage needs a paid plan), so they are shrunk to a few hundred KB */
 const IMG_MAX = 600000;
 const isTime = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
-const STATUS = { yes: '선호', part: '일부', no: '불가', '': '' };
+const STATUS = { yes: '가능', part: '일부', no: '불가', '': '' };
 let form = null, saving = false, msg = '';
 
 export function readMeet(id, v) {
@@ -155,7 +155,7 @@ function openMeet(m) {
   saving = false; msg = '';
   const places = S.PLACES.concat(m.place && !S.PLACES.includes(m.place) ? [m.place] : []);
   $('#mPlace').innerHTML = places.map((pl) => '<option value="' + esc(pl) + '">' + esc(pl) + '</option>').join('');
-  $('#mPlace').value = places.includes(m.place) ? m.place : S.place;
+  $('#mPlace').value = places.includes(m.place) ? m.place : S.PLACES[Math.max(0, S.lens)];
   $('#mDate').value = m.date || S.sel;
   $('#mStart').value = m.start || '';
   $('#mEnd').value = m.end || '';
@@ -267,7 +267,6 @@ function goMeet(id) {
   const m = S.meets.find((x) => x.id === id);
   if (!m) return;
   if (!inRange(m.date)) { toast('이 일정은 프로젝트 기간 밖이라 시간표에 없어요.'); return; }
-  if (S.PLACES.includes(m.place)) { S.place = m.place; store.set(K_PLACE, m.place); }
   S.mode = 'day'; store.set('six.mode', 'day');
   S.focus = { k: m.date, h: +m.start.slice(0, 2) };
   select(m.date);
@@ -300,7 +299,7 @@ export function onMeetClick(ds) {
   if (ds.meetDelNo) { S.confirmMeet = null; renderMeets(); return true; }
   if (ds.meetGo) { goMeet(ds.meetGo); return true; }
   if (ds.meetRec) {
-    /* from a suggestion: the people who prefer that whole slot come pre-selected */
+    /* from a suggestion: the people who can make that whole slot there come pre-selected */
     const [k, s, e, ...rest] = ds.meetRec.split('|'), place = rest.join('|');
     const start = pad(+s) + ':00', end = +e < 24 ? pad(+e) + ':00' : '';
     const who = {};
@@ -310,7 +309,7 @@ export function onMeetClick(ds) {
   }
   if (ds.img) { openLightbox(ds.img); return true; }
   switch (ds.act) {
-    case 'meet-new': openMeet({ date: S.sel, start: S.focus && S.focus.k === S.sel ? pad(S.focus.h) + ':00' : '', place: S.place }); return true;
+    case 'meet-new': openMeet({ date: S.sel, start: S.focus && S.focus.k === S.sel ? pad(S.focus.h) + ':00' : '', place: S.PLACES[Math.max(0, S.lens)] }); return true;
     case 'meet-cancel': closeMeet(); return true;
     case 'meet-img-clear': if (form) { form.img = ''; $('#mImgFile').value = ''; renderDlg(); } return true;
     case 'pick-all': pick('all'); return true;

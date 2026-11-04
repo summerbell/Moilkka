@@ -1,0 +1,1396 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>모일까</title>
+<meta name="description" content="모일까 · 프로젝트마다 선호 시간과 안 되는 시간을 함께 칠하는 일정 조율표">
+<script src="config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: left rail holds the month calendar, the seats and suggested slots; the right panel is the working week/day grid.
+   Without ?p= the same shell shows the project list (create form on the left, projects on the right).
+   Frosted winter-paper neutrals with an ink-blue accent; green and red are reserved for availability only. */
+:root {
+  --bg: #edf0f4;
+  --surface: #fbfcfd;
+  --cell: #f2f5f8;
+  --cell-night: #e6ebf0;
+  --ink: #17202b;
+  --muted: #5d6979;
+  --line: #d5dce4;
+  --line-strong: #b5c0cc;
+  --accent: #2b4e86;
+  --accent-soft: #dde6f3;
+  --on-accent: #ffffff;
+  --go: #1f9e58;
+  --no: #d8443f;
+  --go-ink: #0c6a36;
+  --no-ink: #9c1e1b;
+  --sun: #c03f4a;
+  --sat: #2f5db0;
+  --hatch: rgba(255, 255, 255, 0.38);
+  --shadow: rgba(20, 32, 48, 0.08);
+  --shadow-lg: rgba(20, 32, 48, 0.18);
+  --scrim: rgba(237, 240, 244, 0.72);
+  --p1: #3b5b92; --p2: #8a4f9e; --p3: #1f7a99; --p4: #b0652a; --p5: #5b55c9; --p6: #7a5c3e;
+  --on-p: #ffffff;
+
+  --g1: color-mix(in oklab, var(--go) 22%, var(--cell));
+  --g2: color-mix(in oklab, var(--go) 38%, var(--cell));
+  --g3: color-mix(in oklab, var(--go) 54%, var(--cell));
+  --g4: color-mix(in oklab, var(--go) 70%, var(--cell));
+  --g5: color-mix(in oklab, var(--go) 85%, var(--cell));
+  --g6: var(--go);
+  --r1: color-mix(in oklab, var(--no) 22%, var(--cell));
+  --r2: color-mix(in oklab, var(--no) 38%, var(--cell));
+  --r3: color-mix(in oklab, var(--no) 54%, var(--cell));
+  --r4: color-mix(in oklab, var(--no) 70%, var(--cell));
+  --r5: color-mix(in oklab, var(--no) 85%, var(--cell));
+  --r6: var(--no);
+  /* a whole day marked unavailable is drawn as a cross */
+  --xcross: linear-gradient(to top right, transparent calc(50% - 1.5px), var(--no-ink) calc(50% - 0.75px) calc(50% + 0.75px), transparent calc(50% + 1.5px)),
+            linear-gradient(to bottom right, transparent calc(50% - 1.5px), var(--no-ink) calc(50% - 0.75px) calc(50% + 0.75px), transparent calc(50% + 1.5px));
+
+  --f-display: "Hahmlet", "IBM Plex Sans KR", "Apple SD Gothic Neo", serif;
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", "IBM Plex Sans KR", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141a; --surface: #161d25; --cell: #1c242e; --cell-night: #171e27;
+    --ink: #e5eaf0; --muted: #94a1b1; --line: #29333f; --line-strong: #3d4958;
+    --accent: #8fb0e6; --accent-soft: #22324a; --on-accent: #0f141a;
+    --go: #2fbf6f; --no: #ee5a55; --go-ink: #93f0b8; --no-ink: #ffb2ad;
+    --sun: #f08a92; --sat: #8fb0e6;
+    --hatch: rgba(0, 0, 0, 0.3); --shadow: rgba(0, 0, 0, 0.35); --shadow-lg: rgba(0, 0, 0, 0.55);
+    --scrim: rgba(15, 20, 26, 0.72);
+    --p1: #86a6dc; --p2: #c792d8; --p3: #6cbbd6; --p4: #e2a365; --p5: #a29df2; --p6: #c8a684;
+    --on-p: #0f141a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141a; --surface: #161d25; --cell: #1c242e; --cell-night: #171e27;
+  --ink: #e5eaf0; --muted: #94a1b1; --line: #29333f; --line-strong: #3d4958;
+  --accent: #8fb0e6; --accent-soft: #22324a; --on-accent: #0f141a;
+  --go: #2fbf6f; --no: #ee5a55; --go-ink: #93f0b8; --no-ink: #ffb2ad;
+  --sun: #f08a92; --sat: #8fb0e6;
+  --hatch: rgba(0, 0, 0, 0.3); --shadow: rgba(0, 0, 0, 0.35); --shadow-lg: rgba(0, 0, 0, 0.55);
+  --scrim: rgba(15, 20, 26, 0.72);
+  --p1: #86a6dc; --p2: #c792d8; --p3: #6cbbd6; --p4: #e2a365; --p5: #a29df2; --p6: #c8a684;
+  --on-p: #0f141a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+.banner { margin: 0; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-size: 13px; }
+.banner b { color: var(--accent); }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.wrap {
+  max-width: 1240px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 56px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 6px; font-variant-numeric: tabular-nums; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(30px, 4.4vw, 42px); line-height: 1.08; letter-spacing: -0.015em; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 700; font-size: 24px; line-height: 1.2; margin: 0; text-wrap: balance; }
+h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; margin: 0; }
+
+.whoami { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wn { display: inline-flex; align-items: baseline; gap: 6px; font-weight: 600; }
+.wl { font-size: 11px; font-weight: 500; color: var(--muted); }
+.av { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center; color: var(--on-p); font-weight: 600; font-size: 14px; }
+.av.empty { background: transparent; border: 1.5px dashed var(--line-strong); }
+.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-size: 13px; }
+.btn { height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); font-weight: 600; cursor: pointer; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+.layout { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+
+/* month calendar */
+.tabs { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(58px, 1fr); gap: 3px; background: var(--cell); padding: 3px; border-radius: 10px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { border: 0; background: transparent; border-radius: 8px; padding: 6px 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; line-height: 1.15; color: var(--muted); }
+.tab .tm { font-family: var(--f-display); font-weight: 700; font-size: 17px; }
+.tab .ty { font-family: var(--f-mono); font-size: 10px; }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px var(--shadow); }
+.mgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin-top: 12px; }
+.wdh { text-align: center; font-size: 11px; color: var(--muted); padding: 2px 0 4px; }
+.wdh.sun { color: var(--sun); } .wdh.sat { color: var(--sat); }
+.md { position: relative; appearance: none; border: 1px solid transparent; background: var(--cell); border-radius: 8px; min-height: 56px; padding: 5px 5px 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; cursor: pointer; text-align: left; min-width: 0; }
+.md:hover { border-color: var(--line-strong); }
+.md:disabled { opacity: 0.35; cursor: default; }
+.md:disabled:hover { border-color: transparent; }
+.mdn { font-family: var(--f-mono); font-size: 13px; line-height: 1; padding: 3px 4px; border-radius: 5px; font-variant-numeric: tabular-nums; }
+.md.sun .mdn { color: var(--sun); } .md.sat .mdn { color: var(--sat); }
+.md.today .mdn { background: var(--accent); color: var(--on-accent); }
+.mdh { font-size: 9.5px; color: var(--sun); line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding-left: 3px; }
+.md.inweek { background: var(--accent-soft); }
+.md.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.strip { margin-top: auto; width: 100%; height: 7px; display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); border-radius: 2px; overflow: hidden; background: var(--line); }
+.strip i { display: block; }
+.md { isolation: isolate; }
+.md.mex::after, .mgrid.xmode .md:not(:disabled):hover::after { content: ""; position: absolute; inset: 5px; z-index: -1; border-radius: 4px; background: var(--xcross); opacity: 0.6; pointer-events: none; }
+.mgrid.xmode .md:not(:disabled) { cursor: cell; }
+.mgrid.xmode .md:not(:disabled):not(.mex):hover::after { opacity: 0.25; }
+.mgrid.xmode .md.mex:hover::after { opacity: 0.3; }
+.mdc { margin-top: auto; height: 11px; display: flex; gap: 3px; padding-left: 3px; font-family: var(--f-mono); font-size: 10px; line-height: 11px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mdc .o { color: var(--go-ink); } .mdc .x { color: var(--no-ink); }
+.mdc + .strip { margin-top: 2px; }
+.xhint { margin: 10px 0 0; padding: 7px 10px; border-radius: 8px; background: var(--r1); color: var(--no-ink); font-size: 12px; }
+
+.legend { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 7px; font-size: 12px; color: var(--muted); }
+.lg-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lg-row > b { width: 30px; font-weight: 600; color: var(--ink); }
+.ramp { display: inline-grid; grid-template-columns: repeat(6, 18px); gap: 2px; }
+.ramp i { height: 12px; border-radius: 2px; }
+.sw { display: inline-block; width: 18px; height: 12px; border-radius: 2px; }
+.sw.split { background: linear-gradient(135deg, var(--g3) 0 50%, var(--r3) 50% 100%); }
+.sw.ring { background: var(--cell); box-shadow: inset 0 0 0 2px var(--go-ink); }
+.sw.xsw { background: var(--xcross), var(--cell); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.legend p { margin: 0; }
+
+/* rail sections */
+.sec { border-top: 1px solid var(--line-strong); padding-top: 12px; min-width: 0; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.sec-head .hint { font-size: 12px; color: var(--muted); }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.plist, .rlist { list-style: none; margin: 0; padding: 0; }
+.person { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.pmeta { display: flex; flex-direction: column; min-width: 0; }
+.pname { font-weight: 600; overflow-wrap: anywhere; }
+.tag { font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-left: 6px; }
+.pstat { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.i-go { color: var(--go-ink); font-weight: 600; } .i-no { color: var(--no-ink); font-weight: 600; }
+.mini { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 7px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
+.mini.ghost { border-color: transparent; color: var(--muted); background: transparent; }
+.mini.ghost:hover { color: var(--no-ink); }
+.mini.danger { border-color: var(--no); color: var(--no-ink); }
+.confirm { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+.seatsrow { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.seatsrow .av { width: 22px; height: 22px; }
+.rec { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 10px 2px; cursor: pointer; }
+.rec:hover .rd { color: var(--accent); }
+.rd { font-weight: 600; }
+.rw { font-weight: 400; color: var(--muted); margin-left: 2px; }
+.rt { font-family: var(--f-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+.rc { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--go-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.dotg { width: 9px; height: 9px; border-radius: 2px; background: var(--go); }
+
+/* detail panel */
+.detail { padding: 18px; scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 8px); }
+.dhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.dnav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ib { height: 36px; min-width: 36px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 13px; }
+.ib:disabled { opacity: 0.35; cursor: default; }
+.seg { display: inline-flex; background: var(--cell); padding: 3px; border-radius: 10px; gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 7px; color: var(--muted); cursor: pointer; font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px var(--shadow); font-weight: 600; }
+
+.tools { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 16px; }
+.tool { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 500; cursor: pointer; min-width: 0; white-space: nowrap; }
+.tool .sw { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.tool .sw.erase { background: var(--cell); border: 1.5px dashed var(--line-strong); }
+.tool .sw.look { background: transparent; border: 1.5px solid var(--accent); border-radius: 50%; }
+.tool[data-tool="pref"][aria-pressed="true"] { border-color: var(--go); background: var(--g1); box-shadow: inset 0 0 0 1px var(--go); font-weight: 600; }
+.tool .sw.xday { background: var(--xcross), var(--r1); border: 1.5px solid var(--no-ink); }
+.tool[data-tool="no"][aria-pressed="true"], .tool[data-tool="xday"][aria-pressed="true"] { border-color: var(--no); background: var(--r1); box-shadow: inset 0 0 0 1px var(--no); font-weight: 600; }
+.tool[data-tool="erase"][aria-pressed="true"], .tool[data-tool="look"][aria-pressed="true"] { border-color: var(--ink); background: var(--cell); box-shadow: inset 0 0 0 1px var(--ink); font-weight: 600; }
+.hintline { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+.hintline b { color: var(--ink); }
+.hact { display: flex; margin-top: 8px; }
+.hact .confirm { justify-content: flex-start; color: var(--ink); }
+.info { min-height: 40px; margin: 8px 0 12px; padding: 9px 12px; background: var(--cell); border-radius: 10px; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.info b { font-family: var(--f-mono); font-weight: 500; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.info .muted { color: var(--muted); }
+
+.gw { --lab: 44px; user-select: none; -webkit-user-select: none; }
+.ghead { display: grid; grid-template-columns: var(--lab) repeat(7, minmax(0, 1fr)); gap: 1px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 3; background: var(--surface); padding-block: 4px 6px; }
+.dh { appearance: none; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0; border-radius: 8px; cursor: pointer; min-width: 0; }
+.dh:hover:not(:disabled) { background: var(--cell); }
+.dh .dw { font-size: 11px; color: var(--muted); }
+.dh .dd { font-family: var(--f-mono); font-size: 15px; line-height: 1.3; padding: 0 5px; border-radius: 5px; font-variant-numeric: tabular-nums; }
+.dh.sun .dw, .dh.sun .dd { color: var(--sun); }
+.dh.sat .dw, .dh.sat .dd { color: var(--sat); }
+.dh.today .dd { background: var(--accent); color: var(--on-accent); }
+.dh.sel { background: var(--accent-soft); }
+.dh:disabled { opacity: 0.35; cursor: default; }
+.dh .dx, .xtag { margin-left: 2px; color: var(--no-ink); font-weight: 600; }
+.dh .dx { font-family: var(--f-mono); }
+.xtag { font-size: 11px; }
+.gbody { display: grid; grid-template-columns: var(--lab) repeat(7, minmax(0, 1fr)); grid-auto-rows: 26px; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.gbody.day { grid-template-columns: var(--lab) minmax(0, 1fr); grid-auto-rows: 38px; }
+.lab { background: var(--surface); font-family: var(--f-mono); font-size: 11px; color: var(--muted); padding: 1px 6px 0 0; text-align: right; touch-action: pan-y; font-variant-numeric: tabular-nums; }
+.lab.six { color: var(--ink); }
+.c { background: var(--cell); position: relative; cursor: crosshair; min-width: 0; }
+.c.nt { background: var(--cell-night); }
+.c.off { background: repeating-linear-gradient(45deg, var(--cell-night) 0 4px, var(--surface) 4px 8px); cursor: not-allowed; }
+.c.mp { box-shadow: inset 0 0 0 2px var(--go-ink); }
+.c.mn { box-shadow: inset 0 0 0 2px var(--no-ink); }
+.c.fx { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 1; }
+.gw.paint .c { touch-action: none; }
+.gw.look .c { cursor: pointer; }
+.chips { position: absolute; inset: 0; display: flex; align-items: center; gap: 4px; padding: 0 8px; overflow: hidden; pointer-events: none; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 1.4; padding: 1px 8px 1px 5px; border-radius: 999px; background: var(--surface); border: 1.5px solid; white-space: nowrap; }
+.chip i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.chip.cp { border-color: var(--go-ink); }
+.chip.cn { border-color: var(--no-ink); text-decoration: line-through; text-decoration-color: var(--no-ink); }
+.chip.me { font-weight: 600; }
+.save { font-size: 12px; color: var(--muted); margin: 10px 0 0; text-align: right; }
+
+/* project list (home) */
+.crumb { color: inherit; text-underline-offset: 3px; }
+.crumb:hover { color: var(--accent); }
+.status { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.status p { margin: 0; }
+.home { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.lead { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; }
+.cform { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.cform .btn { align-self: flex-start; }
+.fld { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); min-width: 0; }
+.fld .input { flex: none; width: 100%; }
+.frow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.input::-webkit-date-and-time-value { text-align: left; }
+@supports (-webkit-touch-callout: none) { .input[type="date"] { -webkit-appearance: none; appearance: none; } }
+.proj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.plink { color: inherit; text-decoration: none; }
+.plink:hover .pname { color: var(--accent); }
+.pacts { display: inline-flex; gap: 4px; }
+.nw { white-space: nowrap; }
+.note { margin: 14px 0 0; padding: 12px; border-radius: 10px; background: var(--cell); font-size: 13px; overflow-wrap: anywhere; }
+.note.err { color: var(--no-ink); }
+.note code { font-family: var(--f-mono); font-size: 12px; }
+.uidrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.uid { padding: 4px 8px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); }
+
+/* entry gate */
+.gate {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: var(--scrim); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.gate-card { width: min(100%, 460px); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 24px; box-shadow: 0 24px 60px var(--shadow-lg); display: flex; flex-direction: column; gap: 14px; }
+.gate-lead { margin: 0; color: var(--muted); font-size: 13.5px; }
+.seats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.seat { appearance: none; border: 0; background: transparent; padding: 6px 2px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.seat .av { width: 38px; height: 38px; font-size: 15px; }
+.seat .sn { font-size: 11.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.seat.filled { cursor: pointer; }
+.seat.filled .sn { color: var(--ink); font-weight: 500; }
+.seat.filled:hover:not(:disabled) { background: var(--cell); }
+.seat:disabled { cursor: default; opacity: 0.6; }
+.joinrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.input { flex: 1 1 180px; min-width: 0; height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); padding: 0 12px; font: inherit; font-size: 16px; background: var(--bg); color: var(--ink); }
+.input:disabled { opacity: 0.6; }
+.gate-msg { margin: 0; color: var(--no-ink); font-size: 13px; min-height: 0; }
+.gate-msg:empty { display: none; }
+.gate-status { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 30; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 13px; max-width: calc(100% - 32px); box-shadow: 0 8px 24px var(--shadow-lg); }
+
+@media (max-width: 900px) {
+  .layout, .home { display: flex; flex-direction: column; gap: 18px; }
+  .rail { display: contents; }
+  .cal { order: 1; } .detail { order: 2; } .roster { order: 3; } .recs { order: 4; }
+}
+@media (max-width: 520px) {
+  .detail { padding: 12px; }
+  .gw { --lab: 36px; }
+  .tools { gap: 4px; }
+  .tool { flex-direction: column; gap: 4px; padding: 8px 4px; font-size: 12.5px; line-height: 1.2; white-space: normal; word-break: keep-all; text-align: center; }
+  .dhead { align-items: flex-start; }
+  h2 { font-size: 21px; }
+  .gate-card { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <p class="banner" id="banner" role="status" hidden></p>
+  <header class="top">
+    <div>
+      <p class="eyebrow" id="eyebrow">1시간 단위 · 프로젝트별 일정 조율</p>
+      <h1 id="title">모일까</h1>
+    </div>
+    <div class="whoami" id="whoami"></div>
+  </header>
+
+  <section class="card status" id="pstatus" role="status" hidden></section>
+
+  <main class="home" id="home" hidden>
+    <section class="card" id="hCreate" aria-labelledby="hCreateTitle" hidden>
+      <h2 id="hCreateTitle">새 프로젝트</h2>
+      <p class="lead">프로젝트마다 기간과 인원을 따로 정해요. 만든 뒤 링크를 참여자에게 보내면 돼요.</p>
+      <form class="cform" id="createForm" autocomplete="off" novalidate>
+        <label class="fld">이름<input id="cTitle" class="input" maxlength="40" placeholder="예: A 프로젝트 킥오프"></label>
+        <div class="frow">
+          <label class="fld">시작일<input id="cStart" class="input" type="date"></label>
+          <label class="fld">종료일<input id="cEnd" class="input" type="date"></label>
+        </div>
+        <label class="fld">최대 인원<input id="cMax" class="input" type="number" min="2" max="12" value="6" inputmode="numeric"></label>
+        <p class="gate-msg" id="cMsg" role="alert"></p>
+        <button class="btn primary" id="cBtn" type="submit">만들기</button>
+      </form>
+    </section>
+    <section class="card" id="hInfo" hidden></section>
+    <section class="card" aria-labelledby="hListTitle">
+      <div class="sec-head"><h3 id="hListTitle">프로젝트</h3><span class="mono" id="hCount"></span></div>
+      <ul class="plist" id="projList"></ul>
+    </section>
+  </main>
+
+  <main class="layout" id="board" hidden>
+    <div class="rail">
+      <section class="card cal" aria-label="달력">
+        <div class="tabs" id="tabs" role="tablist" aria-label="달 선택"></div>
+        <p class="xhint" id="xhint" hidden>날짜를 누르면 그날이 ✕ 종일 불가로 표시되고, 다시 누르면 풀려요.</p>
+        <div class="mgrid" id="month"></div>
+        <div class="legend">
+          <div class="lg-row"><b>선호</b><span class="ramp"><i style="background:var(--g1)"></i><i style="background:var(--g2)"></i><i style="background:var(--g3)"></i><i style="background:var(--g4)"></i><i style="background:var(--g5)"></i><i style="background:var(--g6)"></i></span><span class="mono" id="lgMaxP">1 → 6명</span></div>
+          <div class="lg-row"><b>불가</b><span class="ramp"><i id="lgR1"></i><i id="lgR2"></i><i id="lgR3"></i><i id="lgR4"></i><i id="lgR5"></i><i id="lgR6"></i></span><span class="mono" id="lgMaxN">1 → 6명</span></div>
+          <div class="lg-row"><span class="sw split"></span>선호와 불가가 겹친 칸 <span class="sw ring"></span>내가 칠한 칸</div>
+          <div class="lg-row"><span class="mono"><span class="i-go">○3</span> <span class="i-no">✕1</span></span>날짜별 선호 시간이 있는 사람 · 종일 불가인 사람 수</div>
+          <div class="lg-row"><span class="sw xsw"></span>내가 종일 불가로 표시한 날</div>
+          <p>칸이 진할수록 같은 표시를 한 사람이 많아요. 날짜 아래 막대는 그날 0시부터 24시까지예요.</p>
+        </div>
+      </section>
+
+      <section class="sec roster" aria-labelledby="rosterTitle">
+        <div class="sec-head"><h3 id="rosterTitle">참여자</h3><span class="mono" id="seatCount">0 / 6</span></div>
+        <ul class="plist" id="people"></ul>
+        <div class="seatsrow" id="seatsRow"></div>
+      </section>
+
+      <section class="sec recs" aria-labelledby="recTitle">
+        <div class="sec-head"><h3 id="recTitle">추천 시간</h3><span class="hint">불가 0명 · 선호 많은 순</span></div>
+        <ol class="rlist" id="recs"></ol>
+      </section>
+    </div>
+
+    <section class="card detail" id="detail" aria-label="시간표">
+      <div class="dhead">
+        <div>
+          <p class="eyebrow" id="dEyebrow"></p>
+          <h2 id="dTitle"></h2>
+        </div>
+        <div class="dnav">
+          <button type="button" class="ib" id="prev" data-act="prev" aria-label="이전">‹</button>
+          <button type="button" class="ib" id="todayBtn" data-act="today">오늘</button>
+          <button type="button" class="ib" id="next" data-act="next" aria-label="다음">›</button>
+          <div class="seg" role="group" aria-label="보기 단위">
+            <button type="button" data-mode="week" id="mWeek">주</button>
+            <button type="button" data-mode="day" id="mDay">하루</button>
+          </div>
+        </div>
+      </div>
+      <div class="tools" role="group" aria-label="칠하기 도구">
+        <button type="button" class="tool" data-tool="pref"><span class="sw" style="background:var(--go)"></span>선호</button>
+        <button type="button" class="tool" data-tool="no"><span class="sw" id="toolNoSw"></span>불가</button>
+        <button type="button" class="tool" data-tool="xday"><span class="sw xday"></span>종일 불가</button>
+        <button type="button" class="tool" data-tool="erase"><span class="sw erase"></span>지우기</button>
+        <button type="button" class="tool" data-tool="look"><span class="sw look"></span>보기</button>
+      </div>
+      <p class="hintline" id="hint"></p>
+      <div class="info" id="info" aria-live="polite"></div>
+      <div class="gw" id="gw"></div>
+      <p class="save" id="save"></p>
+    </section>
+  </main>
+</div>
+
+<div class="gate" id="gate" hidden role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+  <div class="gate-card">
+    <div>
+      <p class="eyebrow" id="gateEyebrow"></p>
+      <h2 id="gateTitle">닉네임으로 들어오기</h2>
+    </div>
+    <p class="gate-lead">같은 닉네임으로 다시 들어오면 내가 칠한 시간이 그대로 이어져요. 이미 들어온 사람은 자기 자리를 누르면 돼요.</p>
+    <div class="seats" id="gateSeats"></div>
+    <form class="joinrow" id="joinForm" autocomplete="off">
+      <label for="nick" class="sr">닉네임</label>
+      <input id="nick" class="input" maxlength="12" placeholder="닉네임 (12자까지)" enterkeyhint="go">
+      <button id="joinBtn" class="btn primary" type="submit">들어가기</button>
+    </form>
+    <p class="gate-msg" id="gateMsg" role="alert"></p>
+    <p class="gate-status" id="gateStatus"></p>
+    <div><button type="button" class="link" data-act="browse">들어가지 않고 둘러보기</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  /* ?p=<id> opens that project's board; without it the page is the project list */
+  const PID = (new URLSearchParams(location.search).get('p') || '').trim();
+  const PEOPLE = 'projects/' + PID + '/people';
+  const BASE = location.href.split(/[?#]/)[0];
+  const MISSING = '프로젝트를 찾을 수 없어요. 링크가 맞는지 확인하거나, 링크를 보낸 사람에게 다시 받아 주세요.';
+  /* period and seat count come from the project document (see setProject) */
+  let START_K = '', END_K = '', MAX = 6, MONTHS = [], proj = null;
+  const WD = ['일', '월', '화', '수', '목', '금', '토'];
+  const HOLI = {
+    '2026-01-01': '신정', '2026-02-16': '설 연휴', '2026-02-17': '설날', '2026-02-18': '설 연휴', '2026-03-01': '삼일절', '2026-03-02': '대체휴일',
+    '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '대체휴일', '2026-06-03': '지방선거', '2026-06-06': '현충일',
+    '2026-08-15': '광복절', '2026-08-17': '대체휴일', '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴',
+    '2026-10-03': '개천절', '2026-10-05': '대체휴일', '2026-10-09': '한글날', '2026-12-25': '성탄절',
+    '2027-01-01': '신정', '2027-02-06': '설 연휴', '2027-02-07': '설날', '2027-02-08': '설 연휴', '2027-02-09': '대체휴일', '2027-03-01': '삼일절',
+    '2027-05-05': '어린이날', '2027-05-13': '부처님오신날', '2027-06-06': '현충일', '2027-08-15': '광복절', '2027-08-16': '대체휴일',
+    '2027-09-14': '추석 연휴', '2027-09-15': '추석', '2027-09-16': '추석 연휴', '2027-10-03': '개천절', '2027-10-04': '대체휴일',
+    '2027-10-09': '한글날', '2027-10-11': '대체휴일', '2027-12-25': '성탄절', '2027-12-27': '대체휴일'
+  };
+  const EMPTY = '.'.repeat(24);
+  /* "종일 불가" is simply all 24 hours unavailable, so counts and suggestions need no special case */
+  const FULLN = 'n'.repeat(24);
+  const TOOLV = { pref: 'p', no: 'n', erase: '.' };
+
+  const $ = (s) => document.querySelector(s);
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const fromKey = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const inRange = (k) => k >= START_K && k <= END_K;
+  const weekStartK = (k) => { const d = fromKey(k); return ymd(addDays(d, -d.getDay())); };
+  const TODAY_K = ymd(new Date());
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const valid = (s) => typeof s === 'string' && s.length === 24;
+  const initial = (name) => ([...String(name || '').trim()][0] || '?').toUpperCase();
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const coarse = () => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
+  const narrow = () => { try { return matchMedia('(max-width: 900px)').matches; } catch (e) { return false; } };
+  const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  };
+  function monthOf(k) { const d = fromKey(k); const i = MONTHS.findIndex(([y, m]) => y === d.getFullYear() && m === d.getMonth()); return i < 0 ? 0 : i; }
+
+  let DB = null, dbState = 'connecting', readonly = false, joining = false, writing = false;
+  let people = new Map();
+  const K_ME = 'six.me.' + PID, K_NAME = 'six.name.' + PID;
+  let me = PID ? store.get(K_ME) : null, myName = (PID && store.get(K_NAME)) || '';
+  let gateOpen = false;
+  let sel = '', monthIdx = 0;
+  let mode = store.get('six.mode') === 'day' ? 'day' : 'week';
+  let tool = ['pref', 'no', 'xday', 'erase', 'look'].includes(store.get('six.tool')) ? store.get('six.tool') : 'pref';
+  let committed = {}, preview = null, drag = null, focus = null, confirmDel = null, confirmClearX = false;
+  let gateMsg = '', saveState = '', saveAt = '';
+  let colorOf = {};
+  const pendingW = {};
+
+  /* ---------- data helpers ---------- */
+  function sortedPeople() {
+    return [...people.values()].sort((a, b) => (a.joinedAt - b.joinedAt) || a.name.localeCompare(b.name, 'ko'));
+  }
+  function ids() {
+    const arr = sortedPeople().map((p) => p.id);
+    if (me && !people.has(me)) arr.push(me);
+    return arr;
+  }
+  function nameOf(id) { return (people.get(id) && people.get(id).name) || (id === me ? myName : '?'); }
+  function baseStr(k) {
+    if (k in committed) return committed[k];
+    const p = people.get(me); const s = p && p.days[k];
+    return valid(s) ? s : EMPTY;
+  }
+  function mineStr(k) { return preview && k in preview ? preview[k] : baseStr(k); }
+  function strOf(id, k) {
+    if (id === me) return mineStr(k);
+    const p = people.get(id); const s = p && p.days[k];
+    return valid(s) ? s : EMPTY;
+  }
+  function counts(k) {
+    const p = new Array(24).fill(0), n = new Array(24).fill(0);
+    for (const id of ids()) {
+      const s = strOf(id, k); if (s === EMPTY) continue;
+      for (let h = 0; h < 24; h++) { if (s[h] === 'p') p[h]++; else if (s[h] === 'n') n[h]++; }
+    }
+    return { p, n };
+  }
+  function xWho(k) { return ids().filter((id) => strOf(id, k) === FULLN); }
+  const xMode = () => tool === 'xday' && canPaint();
+  function who(k, h) {
+    const p = [], n = [];
+    for (const id of ids()) { const c = strOf(id, k)[h]; if (c === 'p') p.push(id); else if (c === 'n') n.push(id); }
+    return { p, n };
+  }
+  /* six shades whatever the seat count: a full house is always the darkest */
+  const lvl = (c) => Math.min(6, Math.ceil(c * 6 / MAX));
+  function bgFor(p, n) { return bgLv(lvl(p), lvl(n)); }
+  function bgLv(p, n) {
+    if (!p && !n) return '';
+    if (p && !n) return 'var(--g' + p + ')';
+    if (n && !p) return 'repeating-linear-gradient(-45deg, transparent 0 5px, var(--hatch) 5px 7px), var(--r' + n + ')';
+    return 'linear-gradient(135deg, var(--g' + p + ') 0 50%, var(--r' + n + ') 50% 100%)';
+  }
+  function idFor(name) {
+    const b = new TextEncoder().encode(name.toLowerCase());
+    let h = ''; b.forEach((x) => { h += x.toString(16).padStart(2, '0'); });
+    return 'n-' + h;
+  }
+  function canJoin() { return !!DB && dbState === 'ready' && !readonly; }
+  function canPaint() { return !!me && !!DB && !readonly && !['off', 'error', 'denied'].includes(dbState); }
+  function colsNow() {
+    if (mode === 'day') return [sel];
+    const s = fromKey(weekStartK(sel));
+    return Array.from({ length: 7 }, (_, i) => ymd(addDays(s, i)));
+  }
+
+  /* ---------- project ---------- */
+  const dot = (k) => String(k).replace(/-/g, '.');
+  function monthsBetween(a, b) {
+    const s = fromKey(a), e = fromKey(b), out = [];
+    let y = s.getFullYear(), m = s.getMonth();
+    while (y * 12 + m <= e.getFullYear() * 12 + e.getMonth()) { out.push([y, m]); if (++m > 11) { m = 0; y++; } }
+    return out;
+  }
+  function readProject(id, v) {
+    const day = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+    if (!v || typeof v.title !== 'string' || !day(v.start) || !day(v.end) || v.start > v.end) return null;
+    return { id, title: v.title.slice(0, 40), start: v.start, end: v.end, max: Math.min(12, Math.max(2, Math.round(Number(v.max)) || 6)), createdAt: Number(v.createdAt) || 0 };
+  }
+  function setProject(p) {
+    const first = !proj;
+    proj = p; START_K = p.start; END_K = p.end; MAX = p.max; MONTHS = monthsBetween(START_K, END_K);
+    if (first) { sel = inRange(TODAY_K) ? TODAY_K : START_K; gateOpen = !me; }
+    else if (!inRange(sel)) sel = sel < START_K ? START_K : END_K;
+    monthIdx = monthOf(sel);
+    const ym = (k) => dot(k.slice(0, 7));
+    document.title = p.title + ' · 모일까';
+    $('#title').textContent = p.title;
+    $('#eyebrow').innerHTML = '<a class="crumb" href="' + esc(BASE) + '">모일까</a> · ' + dot(START_K) + ' — ' + dot(END_K) + ' · 1시간 단위 · 최대 ' + MAX + '명';
+    $('#gateEyebrow').textContent = (ym(START_K) === ym(END_K) ? ym(START_K) : ym(START_K) + ' — ' + ym(END_K)) + ' · ' + MAX + '자리';
+    $('#lgMaxP').textContent = $('#lgMaxN').textContent = '1 → ' + MAX + '명';
+    remember(p);
+  }
+  /* projects this browser has opened, so people without the admin list can find their way back */
+  function recents() {
+    try { const a = JSON.parse(store.get('six.recent') || '[]'); return Array.isArray(a) ? a.filter((r) => r && typeof r.id === 'string' && typeof r.title === 'string') : []; } catch (e) { return []; }
+  }
+  function remember(p) { store.set('six.recent', JSON.stringify([{ id: p.id, title: p.title, start: p.start, end: p.end, max: p.max }, ...recents().filter((r) => r.id !== p.id)].slice(0, 12))); }
+  function forget(id) { store.set('six.recent', JSON.stringify(recents().filter((r) => r.id !== id))); }
+
+  /* ---------- rendering ---------- */
+  function renderWho() {
+    const el = $('#whoami');
+    if (me) {
+      el.innerHTML = '<span class="av" style="background:var(--p' + (colorOf[me] || 1) + ')">' + esc(initial(myName)) + '</span>' +
+        '<span class="wn"><span class="wl">나</span>' + esc(myName) + '</span>' +
+        '<button type="button" class="link" data-act="leave">닉네임 바꾸기</button>';
+    } else {
+      el.innerHTML = '<button type="button" class="btn primary" data-act="open-gate">닉네임으로 들어오기</button>';
+    }
+  }
+
+  function renderTabs() {
+    const t = $('#tabs');
+    t.innerHTML = MONTHS.map(([y, m], i) =>
+      '<button type="button" role="tab" class="tab" data-tab="' + i + '" aria-selected="' + (i === monthIdx) + '"><span class="tm">' + (m + 1) + '월</span><span class="ty">' + y + '</span></button>'
+    ).join('');
+    /* long projects scroll the tabs sideways; keep the chosen month in view */
+    const on = t.children[monthIdx];
+    if (on && (on.offsetLeft < t.scrollLeft || on.offsetLeft + on.offsetWidth > t.scrollLeft + t.clientWidth)) t.scrollLeft = on.offsetLeft - (t.clientWidth - on.offsetWidth) / 2;
+  }
+
+  function renderMonth() {
+    const [y, m] = MONTHS[monthIdx];
+    const first = new Date(y, m, 1), dim = new Date(y, m + 1, 0).getDate();
+    const wk = new Set(mode === 'week' ? colsNow() : []);
+    let h = WD.map((w, i) => '<span class="wdh' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</span>').join('');
+    for (let i = 0; i < first.getDay(); i++) h += '<span></span>';
+    for (let d = 1; d <= dim; d++) {
+      const k = y + '-' + pad(m + 1) + '-' + pad(d), dow = (first.getDay() + d - 1) % 7, hol = HOLI[k], off = !inRange(k);
+      /* ○ = people with any preferred hour that day, ✕ = people out for the whole day */
+      const os = off ? 0 : ids().filter((id) => strOf(id, k).includes('p')).length;
+      const xs = off ? [] : xWho(k), mex = !!me && xs.includes(me);
+      let strip = '';
+      if (!off) { const c = counts(k); for (let i = 0; i < 24; i++) strip += '<i style="background:' + (bgFor(c.p[i], c.n[i]) || 'transparent') + '"></i>'; }
+      const cls = ['md', (dow === 0 || hol) ? 'sun' : '', (dow === 6 && !hol) ? 'sat' : '', k === TODAY_K ? 'today' : '', k === sel ? 'sel' : '', (wk.has(k) && k !== sel) ? 'inweek' : '', mex ? 'mex' : ''].filter(Boolean).join(' ');
+      const lab = (m + 1) + '월 ' + d + '일 ' + WD[dow] + '요일' + (hol ? ' ' + hol : '') + (os ? ', 선호 있는 사람 ' + os + '명' : '') + (xs.length ? ', 종일 불가 ' + xs.length + '명' : '') +
+        (xMode() && !off ? ', 누르면 종일 불가 ' + (mex ? '해제' : '표시') : '');
+      const ox = (os ? '<span class="o">○' + os + '</span>' : '') + (xs.length ? '<span class="x">✕' + xs.length + '</span>' : '');
+      h += '<button type="button" class="' + cls + '" data-day="' + k + '"' + (off ? ' disabled' : '') + ' aria-label="' + lab + '"' + (k === sel ? ' aria-current="date"' : '') + '>' +
+        '<span class="mdn">' + d + '</span>' + (hol ? '<span class="mdh">' + hol + '</span>' : '') +
+        (off ? '' : '<span class="mdc" aria-hidden="true">' + ox + '</span><span class="strip" aria-hidden="true">' + strip + '</span>') + '</button>';
+    }
+    $('#month').innerHTML = h;
+  }
+
+  function renderPeople() {
+    const sp = sortedPeople();
+    $('#seatCount').textContent = sp.length + ' / ' + MAX;
+    if (!sp.length) {
+      $('#people').innerHTML = '<li class="empty">' + (dbState === 'ready' ? '아직 아무도 들어오지 않았어요. 닉네임으로 들어온 사람이 여기에 차례로 앉아요.' : '참여자 목록을 불러오는 중이에요.') + '</li>';
+    } else {
+      $('#people').innerHTML = sp.map((p) => {
+        let pc = 0, nc = 0, xc = 0;
+        const keys = new Set(Object.keys(p.days));
+        if (p.id === me) Object.keys(committed).forEach((k) => keys.add(k));
+        keys.forEach((k) => {
+          if (!inRange(k)) return;
+          const s = strOf(p.id, k);
+          if (s === FULLN) { xc++; return; }
+          for (let i = 0; i < 24; i++) { if (s[i] === 'p') pc++; else if (s[i] === 'n') nc++; }
+        });
+        const act = confirmDel === p.id
+          ? '<span class="confirm"><span>기록까지 지울까요?</span><button type="button" class="mini danger" data-del-yes="' + esc(p.id) + '">지우기</button><button type="button" class="mini" data-del-no="1">취소</button></span>'
+          : (canJoin() ? '<button type="button" class="mini ghost" data-del="' + esc(p.id) + '" aria-label="' + esc(p.name) + ' 자리 비우기">자리 비우기</button>' : '');
+        return '<li class="person"><span class="av" style="background:var(--p' + colorOf[p.id] + ')">' + esc(initial(p.name)) + '</span>' +
+          '<span class="pmeta"><span class="pname">' + esc(p.name) + (p.id === me ? '<span class="tag">나</span>' : '') + '</span>' +
+          '<span class="pstat"><span class="i-go">선호 ' + pc + '시간</span> · <span class="i-no">불가 ' + nc + '시간</span>' + (xc ? ' · <span class="i-no">종일 불가 ' + xc + '일</span>' : '') + '</span></span>' + act + '</li>';
+      }).join('');
+    }
+    const left = Math.max(0, MAX - sp.length);
+    let row = '';
+    for (let i = 0; i < left; i++) row += '<span class="av empty" aria-hidden="true"></span>';
+    $('#seatsRow').innerHTML = left ? row + '<span>빈 자리 ' + left + '개</span>' : '<span>자리가 모두 찼어요.</span>';
+  }
+
+  function renderRecs() {
+    const out = [];
+    for (let d = fromKey(START_K); ymd(d) <= END_K; d = addDays(d, 1)) {
+      const k = ymd(d), c = counts(k);
+      let h = 0;
+      while (h < 24) {
+        if (c.p[h] >= 2 && c.n[h] === 0) {
+          let e = h;
+          while (e + 1 < 24 && c.p[e + 1] === c.p[h] && c.n[e + 1] === 0) e++;
+          out.push({ k, s: h, e: e + 1, c: c.p[h] }); h = e + 1;
+        } else h++;
+      }
+    }
+    out.sort((a, b) => (b.c - a.c) || ((b.e - b.s) - (a.e - a.s)) || (a.k < b.k ? -1 : a.k > b.k ? 1 : a.s - b.s));
+    const top = out.slice(0, 5), total = Math.max(ids().length, 1);
+    if (!top.length) {
+      $('#recs').innerHTML = '<li class="empty">두 명 이상이 같은 시간을 선호하고 그 시간에 불가한 사람이 없으면 여기에 나와요.</li>';
+      return;
+    }
+    $('#recs').innerHTML = top.map((r) => {
+      const d = fromKey(r.k);
+      return '<li><button type="button" class="rec" data-rec="' + r.k + '" data-h="' + r.s + '">' +
+        '<span class="rd">' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일<span class="rw"> (' + WD[d.getDay()] + ')</span></span>' +
+        '<span class="rt">' + pad(r.s) + ':00–' + pad(r.e) + ':00</span>' +
+        '<span class="rc"><span class="dotg"></span>' + r.c + '/' + total + '명</span></button></li>';
+    }).join('');
+  }
+
+  function renderTools() {
+    document.querySelectorAll('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
+    const gw = $('#gw');
+    gw.classList.toggle('paint', canPaint() && tool !== 'look');
+    gw.classList.toggle('look', !canPaint() || tool === 'look');
+    $('#hint').innerHTML = hint();
+    $('#month').classList.toggle('xmode', xMode());
+    $('#xhint').hidden = !xMode();
+  }
+
+  function hint() {
+    if (!me) return '닉네임으로 들어오면 시간을 칠할 수 있어요. 지금은 칸을 눌러 누가 표시했는지 볼 수 있어요.';
+    if (readonly) return '저장이 거부돼서 칠할 수 없어요. Firestore 규칙을 확인하세요. 칸을 누르면 누가 표시했는지 보여요.';
+    const scroll = coarse() ? ' 화면을 내릴 땐 왼쪽 시간 눈금을 잡고 끌거나 <b>보기</b>로 바꾸세요.' : '';
+    const clearAll = tool === 'xday' ? clearXHtml() : '';
+    return {
+      pref: '칸을 드래그해 <b>선호 시간</b>을 칠하세요. 이미 초록으로 칠한 칸에서 시작하면 지워져요.' + scroll,
+      no: '칸을 드래그해 <b>불가능한 시간</b>을 칠하세요. 이미 빨강으로 칠한 칸에서 시작하면 지워져요.' + scroll,
+      xday: '달력의 날짜나 시간표의 아무 칸을 누르면 그날 하루가 통째로 <b>종일 불가(✕)</b>가 돼요. ✕인 날을 다시 누르면 풀려요. 시간표에선 옆으로 드래그해 여러 날을 한 번에 표시할 수 있어요.' + scroll + (clearAll ? '<span class="hact">' + clearAll + '</span>' : ''),
+      erase: '드래그한 칸에서 <b>내 표시</b>만 지워요.' + scroll,
+      look: '칸을 누르면 누가 표시했는지 보여요. 이 모드에선 화면을 자유롭게 스크롤할 수 있어요.'
+    }[tool];
+  }
+
+  function infoHtml(k, h) {
+    const d = fromKey(k), w = who(k, h);
+    const t = '<b>' + (d.getMonth() + 1) + '/' + d.getDate() + ' (' + WD[d.getDay()] + ') ' + pad(h) + ':00–' + pad(h + 1) + ':00</b>';
+    if (!w.p.length && !w.n.length) return t + '<span class="muted">아직 아무도 표시하지 않았어요.</span>';
+    const list = (arr) => arr.map((id) => esc(nameOf(id)) + (id === me ? '(나)' : '') + (strOf(id, k) === FULLN ? '<span class="xtag">✕종일</span>' : '')).join(', ');
+    let s = t;
+    if (w.p.length) s += '<span class="i-go">선호 ' + w.p.length + '명</span> ' + list(w.p) + ' ';
+    if (w.n.length) s += '<span class="i-no">불가 ' + w.n.length + '명</span> ' + list(w.n);
+    return s;
+  }
+  function refreshInfo() {
+    $('#info').innerHTML = focus ? infoHtml(focus.k, focus.h) : '<span class="muted">칸을 고르면 그 시간에 누가 선호하고 누가 안 되는지 여기에 나와요.</span>';
+  }
+
+  function chipsHtml(w) {
+    const one = (id, cls) => '<span class="chip ' + cls + (id === me ? ' me' : '') + '"><i style="background:var(--p' + (colorOf[id] || 1) + ')"></i>' + esc(nameOf(id)) + '</span>';
+    return w.p.map((id) => one(id, 'cp')).join('') + w.n.map((id) => one(id, 'cn')).join('');
+  }
+
+  function renderDetail() {
+    const cols = colsNow(), d0 = fromKey(cols[0]), d1 = fromKey(cols[cols.length - 1]);
+    if (mode === 'week') {
+      $('#dEyebrow').textContent = d0.getFullYear() + ' · 주간 보기';
+      $('#dTitle').textContent = (d0.getMonth() + 1) + '월 ' + d0.getDate() + '일 – ' + (d1.getMonth() !== d0.getMonth() ? (d1.getMonth() + 1) + '월 ' : '') + d1.getDate() + '일';
+    } else {
+      const hol = HOLI[sel];
+      const xn = inRange(sel) ? xWho(sel).length : 0;
+      $('#dEyebrow').textContent = d0.getFullYear() + ' · 하루 보기' + (hol ? ' · ' + hol : '') + (xn ? ' · 종일 불가 ' + xn + '명' : '');
+      $('#dTitle').textContent = (d0.getMonth() + 1) + '월 ' + d0.getDate() + '일 ' + WD[d0.getDay()] + '요일';
+    }
+    $('#prev').disabled = mode === 'week' ? weekStartK(sel) <= START_K : sel <= START_K;
+    $('#next').disabled = mode === 'week' ? ymd(addDays(fromKey(weekStartK(sel)), 6)) >= END_K : sel >= END_K;
+    $('#todayBtn').hidden = !inRange(TODAY_K);
+    $('#mWeek').setAttribute('aria-pressed', String(mode === 'week'));
+    $('#mDay').setAttribute('aria-pressed', String(mode === 'day'));
+
+    let h = '';
+    if (mode === 'week') {
+      h += '<div class="ghead"><span></span>' + cols.map((k) => {
+        const d = fromKey(k), dow = d.getDay(), hol = HOLI[k];
+        const cls = ['dh', (dow === 0 || hol) ? 'sun' : '', (dow === 6 && !hol) ? 'sat' : '', k === TODAY_K ? 'today' : '', k === sel ? 'sel' : ''].filter(Boolean).join(' ');
+        const xn = inRange(k) ? xWho(k).length : 0;
+        return '<button type="button" class="' + cls + '" data-dayview="' + k + '"' + (inRange(k) ? '' : ' disabled') + ' aria-label="' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 하루 보기' + (xn ? ', 종일 불가 ' + xn + '명' : '') + '"' + (hol ? ' title="' + hol + '"' : '') + '><span class="dw">' + WD[dow] + (xn ? '<span class="dx">✕' + xn + '</span>' : '') + '</span><span class="dd">' + d.getDate() + '</span></button>';
+      }).join('') + '</div>';
+    }
+    h += '<div class="gbody ' + mode + '" aria-label="' + (mode === 'week' ? '주간' : '하루') + ' 시간표">';
+    for (let hr = 0; hr < 24; hr++) {
+      h += '<div class="lab' + (hr % 6 === 0 ? ' six' : '') + '">' + pad(hr) + (mode === 'day' ? ':00' : '') + '</div>';
+      cols.forEach((k, c) => {
+        const off = !inRange(k);
+        h += '<div class="c' + (hr < 7 ? ' nt' : '') + (off ? ' off' : '') + '" data-k="' + k + '" data-h="' + hr + '" data-c="' + c + '">' + (mode === 'day' ? '<div class="chips"></div>' : '') + '</div>';
+      });
+    }
+    h += '</div>';
+    $('#gw').innerHTML = h;
+    updateCells();
+  }
+
+  function updateCells() {
+    const cache = {};
+    document.querySelectorAll('#gw .c').forEach((el) => {
+      if (el.classList.contains('off')) return;
+      const k = el.dataset.k, h = +el.dataset.h;
+      const cnt = cache[k] || (cache[k] = counts(k));
+      el.style.background = bgFor(cnt.p[h], cnt.n[h]);
+      const m = me ? mineStr(k)[h] : '.';
+      el.classList.toggle('mp', m === 'p');
+      el.classList.toggle('mn', m === 'n');
+      el.classList.toggle('fx', !!focus && focus.k === k && focus.h === h);
+      if (mode === 'day' && el.firstElementChild) el.firstElementChild.innerHTML = chipsHtml(who(k, h));
+    });
+  }
+
+  function renderSave() {
+    const el = $('#save');
+    if (!me) { el.textContent = ''; return; }
+    if (saveState === 'saving') el.textContent = '저장 중…';
+    else if (saveState === 'saved') el.textContent = '저장됨 · ' + saveAt + ' · 모두에게 바로 보여요';
+    else if (saveState === 'error') el.textContent = '마지막 변경을 저장하지 못했어요';
+    else el.textContent = '칠하는 즉시 저장되고 모두에게 보여요';
+  }
+
+  function renderGate() {
+    const g = $('#gate');
+    g.hidden = !gateOpen;
+    if (!gateOpen) return;
+    const sp = sortedPeople(), ok = canJoin();
+    let seats = sp.map((p) =>
+      '<button type="button" class="seat filled" data-join="' + esc(p.id) + '"' + (ok ? '' : ' disabled') + ' aria-label="' + esc(p.name) + '(으)로 다시 들어오기"><span class="av" style="background:var(--p' + colorOf[p.id] + ')">' + esc(initial(p.name)) + '</span><span class="sn">' + esc(p.name) + '</span></button>'
+    ).join('');
+    for (let i = sp.length; i < MAX; i++) seats += '<span class="seat"><span class="av empty"></span><span class="sn">빈 자리</span></span>';
+    $('#gateSeats').innerHTML = seats;
+    let st = '';
+    if (dbState === 'connecting') st = '참여자 목록을 불러오는 중…';
+    else if (dbState === 'slow') st = '저장소 응답이 늦어요. 네트워크를 확인하고 잠시만 기다려 주세요.';
+    else if (dbState === 'off') st = 'Firebase에 연결할 수 없어요. config.js의 설정값과 인터넷 연결을 확인하세요.';
+    else if (dbState === 'denied') st = 'Firestore 규칙이 읽기를 막고 있어요. firestore.rules 내용을 Firebase 콘솔의 규칙 탭에 게시하세요.';
+    else if (dbState === 'error') st = '저장소 연결이 끊겼어요. 페이지를 새로 열어 주세요.';
+    else if (readonly) st = '저장이 거부됐어요. firestore.rules 내용을 Firebase 콘솔의 규칙 탭에 게시했는지 확인하세요.';
+    else if (sp.length >= MAX) st = MAX + '자리가 모두 찼어요. 위에서 내 자리를 눌러 들어오세요.';
+    else st = (MAX - sp.length) + '자리 남았어요.';
+    $('#gateStatus').textContent = st;
+    $('#gateMsg').textContent = gateMsg;
+    $('#joinBtn').disabled = !ok || joining;
+    $('#nick').disabled = !ok;
+    $('#joinBtn').textContent = joining ? '들어가는 중…' : '들어가기';
+  }
+
+  function renderAll() {
+    if (!proj) return;
+    colorOf = {};
+    sortedPeople().forEach((p, i) => { colorOf[p.id] = (i % 6) + 1; });
+    if (me && !colorOf[me]) colorOf[me] = (people.size % 6) + 1;
+    renderWho(); renderTabs(); renderMonth(); renderPeople(); renderRecs(); renderTools();
+    if (drag) updateCells(); else renderDetail();
+    refreshInfo(); renderSave(); renderGate();
+  }
+
+  /* ---------- actions ---------- */
+  function toast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 4500);
+  }
+  function setSave(s) {
+    saveState = s;
+    if (s === 'saved') { const n = new Date(); saveAt = pad(n.getHours()) + ':' + pad(n.getMinutes()); }
+    renderSave();
+  }
+  function select(k) {
+    sel = k; monthIdx = monthOf(k);
+    if (focus && !colsNow().includes(focus.k)) focus = null;
+    renderAll();
+  }
+  function step(dir) {
+    let k = ymd(addDays(fromKey(sel), dir * (mode === 'week' ? 7 : 1)));
+    if (k < START_K) k = START_K;
+    if (k > END_K) k = END_K;
+    select(k);
+  }
+  function scrollToDetail() { $('#detail').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' }); }
+  function openGate() { gateOpen = true; gateMsg = ''; renderGate(); setTimeout(() => { const n = $('#nick'); if (n && !n.disabled) n.focus(); }, 30); }
+  function setMe(id, name) {
+    me = id; myName = name || (people.get(id) && people.get(id).name) || myName;
+    store.set(K_ME, me); store.set(K_NAME, myName);
+    gateOpen = false; gateMsg = ''; committed = {}; saveState = '';
+    renderAll();
+  }
+  function leave() {
+    me = null; myName = ''; committed = {}; saveState = '';
+    store.set(K_ME, null); store.set(K_NAME, null);
+    renderAll(); openGate();
+  }
+  function gateError(msg) { gateMsg = msg; renderGate(); }
+
+  async function join(raw) {
+    const name = String(raw || '').trim().replace(/\s+/g, ' ');
+    if (!name) return gateError('닉네임을 입력하세요.');
+    if ([...name].length > 12) return gateError('닉네임은 12자까지 쓸 수 있어요.');
+    if (!DB || dbState !== 'ready') return gateError('아직 저장소에 연결되지 않았어요. 잠시 후 다시 눌러 주세요.');
+    if (readonly) return gateError('보기 전용 권한이라 들어갈 수 없어요.');
+    const id = idFor(name);
+    if (people.has(id)) return setMe(id);
+    if (people.size >= MAX) return gateError(MAX + '자리가 모두 찼어요. 내 자리를 누르거나, 둘러보기로 들어가 쓰지 않는 자리를 비워 주세요.');
+    joining = true; gateMsg = ''; renderGate();
+    try {
+      const ref = DB.collection(PEOPLE).doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) await ref.set({ name, joinedAt: Date.now(), days: {} });
+      const existing = snap.exists && snap.data() && snap.data().name;
+      joining = false;
+      $('#nick').value = '';
+      setMe(id, existing || name);
+    } catch (e) {
+      joining = false;
+      const code = e && e.code;
+      if (code === 'invalid_argument' || code === 'not_granted') { readonly = true; gateError('저장이 거부됐어요. Firestore 규칙(firestore.rules)을 게시했는지 확인하세요.'); }
+      else if (code === 'quota_exceeded') gateError('오늘 쓸 수 있는 Firebase 무료 사용량을 다 썼어요. 한국 시간 오후 4~5시쯤 초기화되면 다시 시도하세요.');
+      else gateError('들어가지 못했어요. 잠시 후 다시 시도하세요.');
+      renderAll();
+    }
+  }
+
+  async function removePerson(id) {
+    confirmDel = null;
+    if (!DB) return;
+    try {
+      await DB.collection(PEOPLE).doc(id).delete();
+      if (id === me) { leave(); return; }
+      toast('자리를 비웠어요.');
+    } catch (e) {
+      toast('자리를 비우지 못했어요. 쓰기 권한을 확인하세요.');
+    }
+    renderAll();
+  }
+
+  /* ---------- saving ---------- */
+  function queueWrite(ch) { Object.assign(pendingW, ch); flush(); }
+  async function writeDays(ref, days) {
+    /* merge only the changed days into my document; recreate it if someone emptied my seat */
+    await ref.merge(people.has(me) ? { days } : { name: myName, joinedAt: Date.now(), days });
+  }
+  function handleWriteErr(e) {
+    const code = e && e.code;
+    if (code === 'invalid_argument' || code === 'not_granted') { readonly = true; toast('저장이 거부됐어요. Firestore 규칙(firestore.rules)을 게시했는지 확인하세요.'); }
+    else if (code === 'quota_exceeded') toast('오늘 쓸 수 있는 Firebase 무료 사용량을 다 썼어요. 한국 시간 오후 4~5시쯤 초기화되면 다시 칠해 주세요.');
+    else if (code === 'revoked') { dbState = 'off'; toast('이 페이지의 저장소 접근이 끊겼어요.'); }
+    else toast('저장하지 못했어요. 잠시 후 다시 칠해 주세요.');
+    saveState = 'error';
+  }
+  async function flush() {
+    if (writing || !DB || !me) return;
+    const keys = Object.keys(pendingW);
+    if (!keys.length) return;
+    const days = {};
+    keys.forEach((k) => { days[k] = pendingW[k]; delete pendingW[k]; });
+    writing = true; setSave('saving');
+    const ref = DB.collection(PEOPLE).doc(me);
+    let ok = false;
+    try { await writeDays(ref, days); ok = true; }
+    catch (e) {
+      if (e && e.code === 'unavailable') {
+        await sleep(400 + Math.random() * 700);
+        try { await writeDays(ref, days); ok = true; } catch (e2) { handleWriteErr(e2); }
+      } else handleWriteErr(e);
+    }
+    keys.forEach((k) => { if (committed[k] === days[k] && !(k in pendingW)) delete committed[k]; });
+    writing = false;
+    if (ok) setSave('saved');
+    renderAll();
+    if (Object.keys(pendingW).length) flush();
+  }
+
+  /* ---------- painting ---------- */
+  function buildPreview() {
+    const c0 = Math.min(drag.a.c, drag.b.c), c1 = Math.max(drag.a.c, drag.b.c);
+    const h0 = Math.min(drag.a.h, drag.b.h), h1 = Math.max(drag.a.h, drag.b.h);
+    preview = {};
+    for (let c = c0; c <= c1; c++) {
+      const k = drag.cols[c];
+      if (!k || !inRange(k)) continue;
+      if (drag.whole) { preview[k] = drag.val; continue; }
+      const s = baseStr(k).split('');
+      for (let h = h0; h <= h1; h++) s[h] = drag.val;
+      preview[k] = s.join('');
+    }
+  }
+  function commit() {
+    const ch = {};
+    if (preview) for (const k in preview) if (preview[k] !== baseStr(k)) { committed[k] = preview[k]; ch[k] = preview[k]; }
+    drag = null; preview = null;
+    if (Object.keys(ch).length) queueWrite(ch);
+    renderAll();
+  }
+  /* my crossed-out days, including ones not saved yet */
+  function myXDays() {
+    const p = people.get(me), keys = new Set(Object.keys((p && p.days) || {}));
+    Object.keys(committed).forEach((k) => keys.add(k));
+    return [...keys].filter((k) => inRange(k) && baseStr(k) === FULLN).sort();
+  }
+  function clearXHtml() {
+    const n = myXDays().length;
+    if (!n) { confirmClearX = false; return ''; }
+    return confirmClearX
+      ? '<span class="confirm"><span>종일 불가 ' + n + '일을 모두 풀까요?</span><button type="button" class="mini danger" data-act="clear-x-yes">모두 풀기</button><button type="button" class="mini" data-act="clear-x-no">취소</button></span>'
+      : '<button type="button" class="mini" data-act="clear-x">✕ 모두 풀기 (' + n + '일)</button>';
+  }
+  function clearAllX() {
+    confirmClearX = false;
+    const ch = {}, days = myXDays();
+    days.forEach((k) => { committed[k] = EMPTY; ch[k] = EMPTY; });
+    if (days.length) { queueWrite(ch); toast('종일 불가 ' + days.length + '일을 모두 풀었어요.'); }
+    renderAll();
+  }
+  function toggleDay(k) {
+    if (!inRange(k)) return;
+    const v = baseStr(k) === FULLN ? EMPTY : FULLN;
+    committed[k] = v;
+    queueWrite({ [k]: v });
+    renderAll();
+  }
+  const cellAt = (x, y) => { const el = document.elementFromPoint(x, y); const c = el && el.closest ? el.closest('#gw .c') : null; return c && !c.classList.contains('off') ? c : null; };
+
+  const gw = $('#gw');
+  gw.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button > 0) return;
+    const cell = e.target.closest('.c');
+    if (!cell || cell.classList.contains('off')) return;
+    const k = cell.dataset.k, h = +cell.dataset.h, c = +cell.dataset.c;
+    focus = { k, h };
+    if (tool === 'look' || !canPaint()) { updateCells(); refreshInfo(); return; }
+    e.preventDefault();
+    try { gw.setPointerCapture(e.pointerId); } catch (err) {}
+    /* "종일 불가" drags across days and ignores the hours; it toggles off when it starts on a day already crossed out */
+    const whole = tool === 'xday';
+    let val;
+    if (whole) val = baseStr(k) === FULLN ? EMPTY : FULLN;
+    else { val = TOOLV[tool]; if (val !== '.' && baseStr(k)[h] === val) val = '.'; }
+    drag = { id: e.pointerId, a: { c, h }, b: { c, h }, val, whole, cols: colsNow() };
+    buildPreview(); updateCells(); refreshInfo();
+  });
+  gw.addEventListener('pointermove', (e) => {
+    if (!drag) {
+      if (e.pointerType === 'mouse') {
+        const cell = e.target.closest('.c');
+        if (cell && !cell.classList.contains('off')) $('#info').innerHTML = infoHtml(cell.dataset.k, +cell.dataset.h);
+      }
+      return;
+    }
+    if (e.pointerId !== drag.id) return;
+    const cell = cellAt(e.clientX, e.clientY);
+    if (!cell) return;
+    const c = +cell.dataset.c, h = +cell.dataset.h;
+    if (c === drag.b.c && h === drag.b.h) return;
+    drag.b = { c, h }; focus = { k: cell.dataset.k, h };
+    buildPreview(); updateCells(); refreshInfo();
+  });
+  gw.addEventListener('pointerup', (e) => { if (drag && e.pointerId === drag.id) commit(); });
+  gw.addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.id) { drag = null; preview = null; updateCells(); } });
+  gw.addEventListener('pointerleave', (e) => { if (!drag && e.pointerType === 'mouse') refreshInfo(); });
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    const ds = t.dataset;
+    if (ds.tab != null) { monthIdx = +ds.tab; renderTabs(); renderMonth(); return; }
+    if (ds.day) {
+      if (xMode()) toggleDay(ds.day);
+      else { select(ds.day); if (narrow()) scrollToDetail(); }
+      return;
+    }
+    if (ds.dayview) { mode = 'day'; store.set('six.mode', mode); select(ds.dayview); return; }
+    if (ds.mode) { mode = ds.mode; store.set('six.mode', mode); if (focus && !colsNow().includes(focus.k)) focus = null; renderAll(); return; }
+    if (ds.tool) { tool = ds.tool; confirmClearX = false; store.set('six.tool', tool); renderTools(); renderMonth(); return; }
+    if (ds.rec) { mode = 'day'; store.set('six.mode', mode); sel = ds.rec; focus = { k: ds.rec, h: +ds.h }; select(ds.rec); scrollToDetail(); return; }
+    if (ds.join) { setMe(ds.join); return; }
+    if (ds.del) { confirmDel = ds.del; renderPeople(); return; }
+    if (ds.delYes) { removePerson(ds.delYes); return; }
+    if (ds.delNo) { confirmDel = null; renderPeople(); return; }
+    if (ds.copy) { copyText(BASE + '?p=' + ds.copy, '링크를 복사했어요. 참여자에게 보내세요.'); return; }
+    if (ds.pdel) { confirmProj = ds.pdel; renderHome(); return; }
+    if (ds.pdelYes) { deleteProject(ds.pdelYes); return; }
+    if (ds.pdelNo) { confirmProj = null; renderHome(); return; }
+    switch (ds.act) {
+      case 'prev': step(-1); break;
+      case 'next': step(1); break;
+      case 'today': if (inRange(TODAY_K)) select(TODAY_K); break;
+      case 'leave': leave(); break;
+      case 'open-gate': openGate(); break;
+      case 'browse': gateOpen = false; renderGate(); break;
+      case 'login': login(); break;
+      case 'logout': logout(); break;
+      case 'copy-uid': if (user) copyText(user.uid, 'UID를 복사했어요.'); break;
+      case 'clear-x': confirmClearX = true; renderTools(); break;
+      case 'clear-x-yes': clearAllX(); break;
+      case 'clear-x-no': confirmClearX = false; renderTools(); break;
+    }
+  });
+  $('#joinForm').addEventListener('submit', (e) => { e.preventDefault(); join($('#nick').value); });
+  $('#createForm').addEventListener('submit', (e) => { e.preventDefault(); createProject(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && gateOpen) { gateOpen = false; renderGate(); } });
+
+  /* legend + tool swatch for "unavailable" use the same hatch as the grid */
+  for (let i = 1; i <= 6; i++) $('#lgR' + i).style.background = bgLv(0, i);
+  $('#toolNoSw').style.background = bgLv(0, 4);
+
+  /* ---------- project list (home) ---------- */
+  let authState = 'unknown', user = null, admin = false, homeErr = '';
+  let plist = [], plistState = 'loading', stopList = null, creating = false, createMsg = '', confirmProj = null;
+  const deleting = new Set();
+
+  function initHome() {
+    const n = new Date();
+    $('#cStart').value = TODAY_K;
+    $('#cEnd').value = ymd(new Date(n.getFullYear(), n.getMonth() + 3, 0));
+    $('#home').hidden = false;
+    renderHome();
+  }
+  function openHome() {
+    /* try-it-alone mode has no accounts: this browser is the admin */
+    if (DB.local) { authState = 'local'; admin = true; watchProjects(); renderHome(); return; }
+    DB.auth.onChange(async (u) => {
+      if (stopList) { stopList(); stopList = null; }
+      user = u || null; admin = false; plist = []; homeErr = '';
+      authState = user ? 'checking' : 'out';
+      renderHome();
+      if (!user) return;
+      const cur = user;
+      try { admin = (await DB.collection('admins').doc(cur.uid).get()).exists; }
+      catch (e) { homeErr = '관리자 정보를 읽지 못했어요. firestore.rules 내용을 Firebase 콘솔의 규칙 탭에 게시했는지 확인하세요.'; }
+      if (user !== cur) return;
+      authState = 'in';
+      if (admin) watchProjects();
+      renderHome();
+    });
+  }
+  function watchProjects() {
+    plistState = 'loading';
+    stopList = DB.collection('projects').onSnapshot((snap) => {
+      plist = snap.docs.map((d) => readProject(d.id, d.data())).filter(Boolean).sort((a, b) => b.createdAt - a.createdAt);
+      if (!snap.metadata.fromCache) plistState = 'ready';
+      renderHome();
+    }, (e) => { plistState = (e && e.code === 'not_granted') ? 'denied' : 'error'; renderHome(); });
+  }
+
+  function homeInfo() {
+    let h = '<h2>링크로 들어오세요</h2><p class="lead">모일까는 프로젝트마다 따로 시간을 모아요. 받은 프로젝트 링크를 열면 닉네임만 정하고 바로 칠할 수 있어요.</p>';
+    if (homeErr) h += '<p class="note err">' + esc(homeErr) + '</p>';
+    if (authState === 'checking') h += '<p class="note">관리자 권한을 확인하는 중…</p>';
+    else if (authState === 'in' && !admin) {
+      h += '<div class="note"><b>이 계정은 아직 관리자가 아니에요.</b> Firebase 콘솔 → Firestore Database → 데이터에서 <code>admins</code> 컬렉션을 만들고, 아래 UID를 문서 ID로 하는 문서를 하나 추가한 뒤 새로고침하세요.' +
+        '<span class="uidrow"><code class="uid">' + esc(user.uid) + '</code><button type="button" class="mini" data-act="copy-uid">복사</button></span></div>';
+    }
+    return h;
+  }
+  function projRow(p, manage) {
+    let act = '';
+    if (manage) {
+      act = deleting.has(p.id) ? '<span class="confirm">지우는 중…</span>'
+        : confirmProj === p.id
+          ? '<span class="confirm"><span>기록까지 모두 지울까요?</span><button type="button" class="mini danger" data-pdel-yes="' + esc(p.id) + '">지우기</button><button type="button" class="mini" data-pdel-no="1">취소</button></span>'
+          : '<span class="pacts"><button type="button" class="mini" data-copy="' + esc(p.id) + '">링크 복사</button><button type="button" class="mini ghost" data-pdel="' + esc(p.id) + '" aria-label="' + esc(p.title) + ' 지우기">지우기</button></span>';
+    }
+    return '<li class="proj"><a class="pmeta plink" href="?p=' + encodeURIComponent(p.id) + '"><span class="pname">' + esc(p.title) + '</span>' +
+      '<span class="pstat"><span class="nw">' + esc(dot(p.start)) + ' — ' + esc(dot(p.end)) + '</span> · <span class="nw">최대 ' + (Number(p.max) || 6) + '명</span></span></a>' + act + '</li>';
+  }
+  function renderHome() {
+    const manage = admin && (authState === 'in' || authState === 'local');
+    const w = $('#whoami');
+    if (authState === 'out') w.innerHTML = '<button type="button" class="link" data-act="login">관리자 로그인</button>';
+    else if (user) w.innerHTML = '<span class="wn"><span class="wl">' + (manage ? '관리자' : '로그인') + '</span>' + esc(user.email || user.displayName || '') + '</span><button type="button" class="link" data-act="logout">로그아웃</button>';
+    else w.innerHTML = '';
+    $('#hCreate').hidden = !manage;
+    $('#hInfo').hidden = manage;
+    if (!manage) $('#hInfo').innerHTML = homeInfo();
+    $('#cMsg').textContent = createMsg;
+    $('#cBtn').disabled = creating;
+    $('#cBtn').textContent = creating ? '만드는 중…' : '만들기';
+    $('#hListTitle').textContent = manage ? '프로젝트' : '최근 연 프로젝트';
+    const items = manage ? plist : recents();
+    $('#hCount').textContent = manage && plistState === 'ready' ? items.length + '개' : '';
+    let empty = '';
+    if (manage && plistState === 'denied') empty = 'Firestore 규칙이 프로젝트 목록을 막고 있어요. firestore.rules 내용을 다시 게시하세요.';
+    else if (manage && plistState === 'error') empty = '목록을 불러오지 못했어요. 페이지를 새로 열어 주세요.';
+    else if (!items.length) empty = manage ? (plistState === 'ready' ? '아직 프로젝트가 없어요. 새 프로젝트를 만들어 보세요.' : '프로젝트를 불러오는 중이에요.') : '아직 연 프로젝트가 없어요. 받은 링크로 들어오면 여기에 남아요.';
+    $('#projList').innerHTML = empty ? '<li class="empty">' + empty + '</li>' : items.map((p) => projRow(p, manage)).join('');
+  }
+
+  async function login() {
+    homeErr = ''; renderHome();
+    try { await DB.auth.signIn(); }
+    catch (e) {
+      const c = e && e.code;
+      if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') return;
+      homeErr = {
+        'auth/unauthorized-domain': '이 주소(' + location.hostname + ')가 Firebase 승인 도메인에 없어요. Authentication → 설정 → 승인된 도메인에 추가하세요.',
+        'auth/operation-not-allowed': 'Google 로그인이 꺼져 있어요. Firebase 콘솔 Authentication → 로그인 방법에서 Google을 사용 설정하세요.',
+        'auth/popup-blocked': '팝업이 막혔어요. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.'
+      }[c] || '로그인하지 못했어요. 잠시 후 다시 시도하세요.';
+      renderHome();
+    }
+  }
+  function logout() {
+    if (stopList) { stopList(); stopList = null; }
+    DB.auth.signOut();
+  }
+  async function copyText(text, done) {
+    try { await navigator.clipboard.writeText(text); toast(done); }
+    catch (e) { window.prompt('아래 내용을 복사하세요.', text); }
+  }
+  function newId() {
+    const a = 'abcdefghijkmnpqrstuvwxyz23456789', b = crypto.getRandomValues(new Uint8Array(12));
+    return Array.from(b, (x) => a[x & 31]).join('');
+  }
+  async function createProject() {
+    const title = $('#cTitle').value.trim().replace(/\s+/g, ' ');
+    const start = $('#cStart').value, end = $('#cEnd').value, max = Math.round(Number($('#cMax').value));
+    const fail = (m) => { createMsg = m; renderHome(); };
+    if (!title) return fail('프로젝트 이름을 입력하세요.');
+    if (!start || !end) return fail('시작일과 종료일을 고르세요.');
+    if (start > end) return fail('종료일이 시작일보다 빨라요.');
+    if (Math.round((fromKey(end) - fromKey(start)) / 864e5) + 1 > 366) return fail('기간은 1년까지 잡을 수 있어요.');
+    if (!(max >= 2 && max <= 12)) return fail('최대 인원은 2명에서 12명 사이로 정하세요.');
+    creating = true; createMsg = ''; renderHome();
+    try {
+      await DB.collection('projects').doc(newId()).set({ title, start, end, max, createdAt: Date.now(), owner: user ? user.uid : 'local' });
+      $('#cTitle').value = '';
+      toast('‘' + title + '’ 프로젝트를 만들었어요. 목록에서 링크를 복사해 보내세요.');
+    } catch (e) {
+      createMsg = (e && e.code === 'not_granted') ? '만들기가 거부됐어요. 관리자 계정인지, firestore.rules를 게시했는지 확인하세요.' : '만들지 못했어요. 잠시 후 다시 시도하세요.';
+    }
+    creating = false; renderHome();
+  }
+  async function deleteProject(id) {
+    confirmProj = null; deleting.add(id); renderHome();
+    try {
+      /* people first, so a half-finished delete can simply be retried */
+      const col = DB.collection('projects/' + id + '/people');
+      const snap = await col.get();
+      await Promise.all(snap.docs.map((d) => col.doc(d.id).delete()));
+      await DB.collection('projects').doc(id).delete();
+      forget(id);
+      toast('프로젝트를 지웠어요.');
+    } catch (e) {
+      toast('프로젝트를 지우지 못했어요. 관리자 계정과 Firestore 규칙을 확인하세요.');
+    }
+    deleting.delete(id); renderHome();
+  }
+
+  /* ---------- shared storage ---------- */
+  const FB_VER = '10.12.2';
+  function mapCode(c) {
+    if (c === 'permission-denied' || c === 'unauthenticated') return 'not_granted';
+    if (c === 'resource-exhausted') return 'quota_exceeded';
+    if (c === 'unavailable' || c === 'deadline-exceeded') return 'unavailable';
+    return c || 'unknown';
+  }
+
+  /* Firestore, wrapped in the small interface the page uses (paths like 'projects/<id>/people') */
+  async function firebaseAdapter(cfg, withAuth) {
+    const base = 'https://www.gstatic.com/firebasejs/' + FB_VER + '/';
+    const [appMod, fs, am] = await Promise.all([
+      import(base + 'firebase-app.js'),
+      import(base + 'firebase-firestore.js'),
+      withAuth ? import(base + 'firebase-auth.js') : null
+    ]);
+    const app = appMod.initializeApp(cfg);
+    const auth = am ? am.getAuth(app) : null;
+    const db = fs.getFirestore(app);
+    const wrap = (p) => p.catch((e) => { throw { code: mapCode(e && e.code), message: e && e.message }; });
+    const fail = (err) => (e) => err && err({ code: mapCode(e && e.code) });
+    const docsOf = (snap) => snap.docs.map((d) => ({ id: d.id, data: () => d.data() }));
+    const docOf = (ref) => ({
+      get: () => wrap(fs.getDoc(ref)).then((s) => ({ exists: s.exists(), data: () => s.data() })),
+      set: (data) => wrap(fs.setDoc(ref, data)),
+      merge: (data) => wrap(fs.setDoc(ref, data, { merge: true })),
+      delete: () => wrap(fs.deleteDoc(ref)),
+      onSnapshot(next, err) {
+        return fs.onSnapshot(ref, { includeMetadataChanges: true },
+          (s) => next({ exists: s.exists(), data: () => s.data(), metadata: { fromCache: s.metadata.fromCache } }), fail(err));
+      }
+    });
+    return {
+      auth: auth && {
+        onChange: (cb) => am.onAuthStateChanged(auth, cb),
+        signIn: () => am.signInWithPopup(auth, new am.GoogleAuthProvider()),
+        signOut: () => am.signOut(auth)
+      },
+      collection(path) {
+        const col = fs.collection(db, path);
+        return {
+          onSnapshot(next, err) {
+            return fs.onSnapshot(col, { includeMetadataChanges: true },
+              (snap) => next({ docs: docsOf(snap), metadata: { fromCache: snap.metadata.fromCache } }), fail(err));
+          },
+          get: () => wrap(fs.getDocs(col)).then((snap) => ({ docs: docsOf(snap) })),
+          doc: (id) => docOf(fs.doc(db, path, id))
+        };
+      }
+    };
+  }
+
+  /* Try-it-alone mode: same interface, kept in this browser only (one object keyed by document path) */
+  function localAdapter() {
+    const KEY = 'six.local', subs = new Set();
+    const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } };
+    const write = (all) => { try { localStorage.setItem(KEY, JSON.stringify(all)); } catch (e) {} subs.forEach((f) => f()); };
+    window.addEventListener('storage', (e) => { if (e.key === KEY) subs.forEach((f) => f()); });
+    const watch = (f) => { subs.add(f); setTimeout(f, 0); return () => subs.delete(f); };
+    const docsIn = (path) => {
+      const all = read(), pre = path + '/';
+      return Object.keys(all).filter((k) => k.startsWith(pre) && !k.slice(pre.length).includes('/')).map((k) => ({ id: k.slice(pre.length), data: () => all[k] }));
+    };
+    const docOf = (path) => ({
+      get: async () => { const all = read(); return { exists: !!all[path], data: () => all[path] }; },
+      set: async (data) => { const all = read(); all[path] = data; write(all); },
+      merge: async (data) => {
+        const all = read(), cur = all[path] || {}, nx = Object.assign({}, cur, data);
+        if (data.days) nx.days = Object.assign({}, cur.days || {}, data.days);
+        all[path] = nx; write(all);
+      },
+      delete: async () => { const all = read(); delete all[path]; write(all); },
+      onSnapshot(next) { return watch(() => { const all = read(); next({ exists: !!all[path], data: () => all[path], metadata: { fromCache: false } }); }); }
+    });
+    return {
+      local: true,
+      collection(path) {
+        return {
+          onSnapshot(next) { return watch(() => next({ docs: docsIn(path), metadata: { fromCache: false } })); },
+          get: async () => ({ docs: docsIn(path) }),
+          doc: (id) => docOf(path + '/' + id)
+        };
+      }
+    };
+  }
+
+  async function connect() {
+    const cfg = window.FIREBASE_CONFIG || {};
+    const configured = typeof cfg.apiKey === 'string' && cfg.apiKey.trim() && typeof cfg.projectId === 'string' && cfg.projectId.trim();
+    if (!configured) {
+      DB = localAdapter();
+      const b = $('#banner');
+      b.innerHTML = '<b>혼자 써보기 모드</b> · Firebase가 아직 연결되지 않아 이 브라우저에만 저장돼요. README의 Firebase 설정을 마치면 링크를 받은 사람들과 함께 쓸 수 있어요.';
+      b.hidden = false;
+    } else {
+      /* only the project list needs sign-in, so participants never load Firebase Auth */
+      try { DB = await firebaseAdapter(cfg, !PID); }
+      catch (e) {
+        dbState = 'off';
+        const msg = 'Firebase에 연결할 수 없어요. config.js의 설정값과 인터넷 연결을 확인하세요.';
+        if (PID) showStatus(msg); else { homeErr = msg; renderHome(); }
+        return;
+      }
+    }
+    if (PID) openProject(); else openHome();
+  }
+
+  /* ---------- project board ---------- */
+  function showStatus(msg, back) {
+    const el = $('#pstatus');
+    el.hidden = !msg;
+    el.innerHTML = msg ? '<p>' + msg + '</p>' + (back ? '<a class="link" href="' + esc(BASE) + '">첫 화면으로</a>' : '') : '';
+  }
+  function openProject() {
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(PID)) return showStatus(MISSING, true);
+    showStatus('프로젝트를 불러오는 중…');
+    const timer = setTimeout(() => { if (!proj) showStatus('저장소 응답이 늦어요. 네트워크를 확인하고 잠시만 기다려 주세요.'); }, 10000);
+    let stopPeople = null;
+    DB.collection('projects').doc(PID).onSnapshot((snap) => {
+      if (!snap.exists && snap.metadata.fromCache) return;
+      clearTimeout(timer);
+      const p = snap.exists ? readProject(PID, snap.data()) : null;
+      if (!p) {
+        if (stopPeople) { stopPeople(); stopPeople = null; }
+        const was = !!proj;
+        proj = null; gateOpen = false;
+        $('#board').hidden = true; $('#gate').hidden = true;
+        if (!snap.exists) forget(PID);
+        showStatus(snap.exists ? '프로젝트 설정을 읽을 수 없어요.' : was ? '이 프로젝트는 삭제됐어요.' : MISSING, true);
+        return;
+      }
+      setProject(p);
+      showStatus('');
+      $('#board').hidden = false;
+      if (!stopPeople) stopPeople = watchPeople();
+      renderAll();
+    }, (e) => {
+      clearTimeout(timer);
+      showStatus((e && e.code === 'not_granted') ? 'Firestore 규칙이 읽기를 막고 있어요. firestore.rules 내용을 Firebase 콘솔의 규칙 탭에 게시하세요.' : '저장소 연결이 끊겼어요. 페이지를 새로 열어 주세요.');
+    });
+  }
+  function watchPeople() {
+    const timer = setTimeout(() => { if (dbState === 'connecting') { dbState = 'slow'; renderAll(); } }, 10000);
+    return DB.collection(PEOPLE).onSnapshot((snap) => {
+      const next = new Map();
+      snap.docs.forEach((d) => {
+        const v = d.data() || {};
+        if (typeof v.name !== 'string') return;
+        next.set(d.id, { id: d.id, name: v.name.slice(0, 24), joinedAt: Number(v.joinedAt) || 0, days: (v.days && typeof v.days === 'object') ? v.days : {} });
+      });
+      people = next;
+      if (!snap.metadata.fromCache) { clearTimeout(timer); if (dbState === 'connecting' || dbState === 'slow') dbState = 'ready'; }
+      if (me && people.has(me)) { myName = people.get(me).name; store.set(K_NAME, myName); }
+      if (me && !people.has(me) && !snap.metadata.fromCache && !joining && !writing) { toast('내 자리가 비워져서 다시 들어와야 해요.'); leave(); return; }
+      renderAll();
+    }, (e) => { clearTimeout(timer); dbState = (e && e.code === 'not_granted') ? 'denied' : 'error'; renderAll(); });
+  }
+
+  if (PID) $('#eyebrow').innerHTML = '<a class="crumb" href="' + esc(BASE) + '">모일까</a> · 1시간 단위 일정 조율';
+  else initHome();
+  connect();
+})();
+</script>
+
+</body>
+</html>

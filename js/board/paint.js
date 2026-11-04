@@ -68,11 +68,11 @@ export function setMode(pl, m) {
   if (m === 'own' && was === 'same') {
     /* keep what was on screen: an empty layer starts as a copy of the base, one painted before comes back as it was */
     const own = Object.assign({}, storedDays(S.me, pl), S.committed[pl] || {});
-    if (Object.values(own).some((s) => typeof s === 'string' && s.length === 24 && s !== EMPTY)) toast(pl + '에 따로 칠해 두었던 일정을 다시 불러왔어요.');
+    if (Object.values(own).some((s) => typeof s === 'string' && s.length === 24 && s !== EMPTY)) toast(pl + '에 따로 칠해 두었던 시간을 다시 불러왔어요.');
     else {
       ch = {};
       dayKeys(S.me, S.PLACES[0]).forEach((k) => { const s = layerStr(S.me, k, S.PLACES[0]); if (s !== EMPTY) ch[k] = s; });
-      toast(P + ' 따로 칠해요. ' + S.PLACES[0] + ' 일정을 옮겨 두었으니 다른 부분만 고치세요.');
+      toast(P + ' 따로 칠해요. ' + S.PLACES[0] + '에 칠한 시간을 옮겨 두었으니 다른 부분만 고치세요.');
     }
   } else if (m === 'own') toast(P + ' 따로 칠해요.');
   S.plOv[pl] = m; S.pendingPl[pl] = m;

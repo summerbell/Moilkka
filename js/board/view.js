@@ -54,7 +54,7 @@ export function renderMonth() {
   for (let i = 0; i < first.getDay(); i++) h += '<span></span>';
   for (let d = 1; d <= dim; d++) {
     const k = y + '-' + pad(m + 1) + '-' + pad(d), dow = (first.getDay() + d - 1) % 7, hol = HOLI[k], off = !inRange(k);
-    let lab = (m + 1) + '월 ' + d + '일 ' + WD[dow] + '요일' + (hol ? ' ' + hol : '') + (mh[k] ? ', 약속 있음' : '');
+    let lab = (m + 1) + '월 ' + d + '일 ' + WD[dow] + '요일' + (hol ? ' ' + hol : '') + (mh[k] ? ', 일정 있음' : '');
     let ox = '', strip = '', mex = false;
     if (!off) {
       const xs = xWho(k);
@@ -107,7 +107,7 @@ export function renderMine() {
   let sum = '';
   if (m === 'no') sum = withJ(P, '은', '는') + ' 못 간다고 해 두었어요. 위의 장소 칸에서 바꿀 수 있어요.';
   else if (m === '') sum = withJ(P, '은', '는') + ' 아직 안 정했어요. 위에서 고르거나 시간표에서 바로 칠하세요.';
-  else if (m === 'same') sum = withJ(P, '은', '는') + ' ‘' + modeLabel('same') + '’이라 ' + S.PLACES[0] + ' 일정이 그대로 보여요.';
+  else if (m === 'same') sum = withJ(P, '은', '는') + ' ‘' + modeLabel('same') + '’이라 ' + S.PLACES[0] + '에 칠한 시간이 그대로 보여요.';
   else if (days.length) sum = '날짜를 누르면 그날 시간표로 가요.';
   $('#mineSum').textContent = sum;
   $('#mineSum').hidden = !sum;
@@ -198,7 +198,7 @@ export function renderRecs() {
       '<span class="rd">' + dayHead(fromKey(r.k)) + tags + '</span>' +
       '<span class="rt">' + pad(r.s) + ':00–' + pad(r.e) + ':00</span>' +
       '<span class="rc">' + (all ? '<span class="all">모두</span>' : '<span class="dotg"></span>') + r.c + '/' + total + '명</span></button>' +
-      (S.admin ? '<button type="button" class="mini" data-meet-rec="' + r.k + '|' + r.s + '|' + r.e + '|' + esc(pl) + '" aria-label="이 시간으로 약속 잡기">+ 약속</button>' : '') + '</li>';
+      (S.admin ? '<button type="button" class="mini" data-meet-rec="' + r.k + '|' + r.s + '|' + r.e + '|' + esc(pl) + '" aria-label="이 시간으로 일정 잡기">+ 일정</button>' : '') + '</li>';
   }).join('');
 }
 
@@ -280,7 +280,7 @@ export function renderDetail() {
       const d = fromKey(k), dow = d.getDay(), hol = HOLI[k];
       const cls = ['dh', (dow === 0 || hol) ? 'sun' : '', (dow === 6 && !hol) ? 'sat' : '', k === TODAY_K ? 'today' : '', k === S.sel ? 'sel' : '', mh[k] ? 'hasmeet' : ''].filter(Boolean).join(' ');
       const xn = inRange(k) && !mv ? xWho(k).length : 0;
-      return '<button type="button" class="' + cls + '" data-dayview="' + k + '"' + (inRange(k) ? '' : ' disabled') + ' aria-label="' + mdLabel(d) + ' 하루 보기' + (xn ? ', 종일 불가 ' + xn + '명' : '') + (mh[k] ? ', 약속 있음' : '') + '"' + (hol ? ' title="' + hol + '"' : '') + '><span class="dw">' + WD[dow] + (xn ? '<span class="dx">✕' + xn + '</span>' : '') + '</span><span class="dd">' + d.getDate() + '</span></button>';
+      return '<button type="button" class="' + cls + '" data-dayview="' + k + '"' + (inRange(k) ? '' : ' disabled') + ' aria-label="' + mdLabel(d) + ' 하루 보기' + (xn ? ', 종일 불가 ' + xn + '명' : '') + (mh[k] ? ', 일정 있음' : '') + '"' + (hol ? ' title="' + hol + '"' : '') + '><span class="dw">' + WD[dow] + (xn ? '<span class="dx">✕' + xn + '</span>' : '') + '</span><span class="dd">' + d.getDate() + '</span></button>';
     }).join('') + '</div>';
   }
   h += '<div class="gbody ' + S.mode + '" aria-label="' + (S.mode === 'week' ? '주간' : '하루') + ' 시간표">';

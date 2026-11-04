@@ -74,7 +74,7 @@
           <div class="lg-row"><b>불가</b><span class="ramp"><i id="lgR1"></i><i id="lgR2"></i><i id="lgR3"></i><i id="lgR4"></i><i id="lgR5"></i><i id="lgR6"></i></span><span class="mono" id="lgMaxN">1 → 6명</span></div>
           <div class="lg-row"><span class="sw split"></span>선호와 불가가 겹친 칸 <span class="sw ring"></span>내가 칠한 칸</div>
           <div class="lg-row"><span class="mono"><span class="i-go">○3</span> <span class="i-no">✕1</span></span><span id="lgOx">날짜별 선호 시간이 있는 사람 · 종일 불가인 사람 수</span></div>
-          <div class="lg-row"><span class="sw xsw"></span>내가 종일 불가로 표시한 날 <span class="sw meetsw"></span>약속 잡힌 날·시간</div>
+          <div class="lg-row"><span class="sw xsw"></span>내가 종일 불가로 표시한 날 <span class="sw meetsw"></span>일정 잡힌 날·시간</div>
           <p id="lgNote">칸이 진할수록 같은 표시를 한 사람이 많아요. 날짜 아래 막대는 그날 0시부터 24시까지예요.</p>
         </div>
       </section>
@@ -155,7 +155,7 @@
   <form class="gate-card mform" id="meetForm" autocomplete="off" novalidate>
     <div>
       <p class="eyebrow" id="meetDlgEyebrow">관리자만 정할 수 있어요 · 모두에게 보여요</p>
-      <h2 id="meetDlgTitle">약속 잡기</h2>
+      <h2 id="meetDlgTitle">일정 잡기</h2>
     </div>
     <div class="frow">
       <label class="fld">날짜<input id="mDate" class="input" type="date"></label>
@@ -164,6 +164,16 @@
     <div class="frow">
       <label class="fld">시작<input id="mStart" class="input" type="time" step="600"></label>
       <label class="fld">끝 (선택)<input id="mEnd" class="input" type="time" step="600"></label>
+    </div>
+    <label class="fld">제목 (선택)<input id="mTitle" class="input" maxlength="40" placeholder="예: 전체 합주, 보컬 파트 연습"></label>
+    <div class="fld">
+      <div class="pickhead">참가자<span id="mWhoSum"></span></div>
+      <div class="whopick" id="mWho"></div>
+      <div class="pickacts" id="mWhoActs">
+        <button type="button" class="mini" data-act="pick-all">모두</button>
+        <button type="button" class="mini" data-act="pick-yes">이 시간 선호한 사람만</button>
+        <button type="button" class="mini ghost" data-act="pick-none">모두 빼기</button>
+      </div>
     </div>
     <label class="fld">장소 이름<input id="mVenue" class="input" maxlength="80" placeholder="예: 강남역 ○○ 스터디룸 3번 방"></label>
     <label class="fld">예약 링크 (선택)<input id="mLink" class="input" type="url" inputmode="url" maxlength="500" placeholder="https://…"></label>

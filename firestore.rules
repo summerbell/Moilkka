@@ -5,8 +5,8 @@ rules_version = '2';
 //   관리자 = Firestore의 admins 컬렉션에 자기 UID로 된 문서가 있는 Google 계정이에요. (README 3단계)
 // - 프로젝트 하나를 읽는 건 누구나 할 수 있어요. 프로젝트 ID를 알아야 하니 링크(?p=…)가 곧 열쇠예요.
 // - 참여자(people)는 로그인 없이 칠할 수 있고, 문서 모양(name / joinedAt / days / pl / at)이 맞을 때만 저장돼요.
-//   days = 기본 장소 일정, pl = 다른 장소마다 같음/따로/못 감, at = 다른 장소에 따로 칠한 일정
-// - 약속(meets)은 누구나 볼 수 있고, 관리자만 잡고 고치고 지울 수 있어요.
+//   days = 기본 장소에 칠한 시간, pl = 다른 장소마다 같음/따로/못 감, at = 다른 장소에 따로 칠한 시간
+// - 일정(meets)은 누구나 볼 수 있고, 관리자만 잡고 고치고 지울 수 있어요. who = 참가자 { 참여자ID: 이름 }
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAdmin() {
@@ -42,11 +42,12 @@ service cloud.firestore {
     }
     function validMeet() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['date', 'start', 'end', 'place', 'venue', 'link', 'img', 'memo', 'createdAt'])
+      return d.keys().hasOnly(['date', 'start', 'end', 'title', 'place', 'venue', 'link', 'img', 'memo', 'who', 'createdAt'])
         && isDay(d.date) && isTime(d.start)
         && (!('end' in d) || isTime(d.end))
         && d.place is string && d.place.size() <= 20
-        && optStr(d, 'venue', 80) && optStr(d, 'link', 500) && optStr(d, 'img', 700000) && optStr(d, 'memo', 300);
+        && optStr(d, 'title', 40) && optStr(d, 'venue', 80) && optStr(d, 'link', 500) && optStr(d, 'img', 700000) && optStr(d, 'memo', 300)
+        && (!('who' in d) || (d.who is map && d.who.size() <= 24));
     }
 
     // 관리자 표시는 Firebase 콘솔에서만 만들어요. 페이지는 내 문서가 있는지만 확인해요.

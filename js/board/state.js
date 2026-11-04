@@ -24,7 +24,9 @@ export const S = {
   preview: null, drag: null, focus: null,
   confirmDel: null, confirmClearX: false,
   saveState: '', saveAt: '', colorOf: {},
-  admin: false, meets: [], meetsState: 'loading', confirmMeet: null, plEdit: false
+  admin: false, meets: [], meetsState: 'loading', confirmMeet: null, plEdit: false,
+  /* the meetings section shows cards, or per person which meetings they attend */
+  meetView: store.get('six.meetview') === 'people' ? 'people' : 'cards'
 };
 
 export const inRange = (k) => k >= S.START_K && k <= S.END_K;
@@ -123,15 +125,29 @@ export function canPaint() { return !!S.me && !!S.DB && !S.readonly && !['off', 
 export function canPaintHere() { return canPaint() && modeOf(S.me) !== 'no'; }
 export const xMode = () => S.tool === 'xday' && canPaintHere();
 
-/* hours covered by a meeting, per day, for the calendar dot and the grid's accent bar */
+/* ---------- meetings ---------- */
+/* the grid hours a meeting touches: '19:30'–'21:00' → [19, 21) */
+export function meetSpan(start, end) {
+  const s = +start.slice(0, 2);
+  const e = end ? Math.ceil((+end.slice(0, 2) * 60 + +end.slice(3, 5)) / 60) : s + 1;
+  return [s, Math.min(24, Math.max(e, s + 1))];
+}
+/* hours covered by meetings, per day, for the calendar dot and the grid's accent bar */
 export function meetHours() {
   const out = {};
   S.meets.forEach((m) => {
-    const s = +m.start.slice(0, 2);
-    let e = m.end ? Math.ceil((+m.end.slice(0, 2) * 60 + +m.end.slice(3, 5)) / 60) : s + 1;
-    if (e <= s) e = s + 1;
-    const set = out[m.date] || (out[m.date] = new Set());
-    for (let h = s; h < e && h < 24; h++) set.add(h);
+    const [s, e] = meetSpan(m.start, m.end), set = out[m.date] || (out[m.date] = new Set());
+    for (let h = s; h < e; h++) set.add(h);
   });
   return out;
+}
+/* a meeting without a guest list (made before lists existed) is for everyone */
+export function attends(m, id) { return m.who ? id in m.who : S.people.has(id); }
+/* how a person marked a meeting's hours at its place: 'yes' all preferred, 'part' some, 'no' any unavailable, '' nothing */
+export function slotStatus(id, k, start, end, pl) {
+  if (!inRange(k) || !start) return '';
+  const [s, e] = meetSpan(start, end), str = strOf(id, k, S.PLACES.includes(pl) ? pl : S.PLACES[0]);
+  let p = 0, n = 0;
+  for (let h = s; h < e; h++) { if (str[h] === 'p') p++; else if (str[h] === 'n') n++; }
+  return n ? 'no' : p === e - s ? 'yes' : p ? 'part' : '';
 }

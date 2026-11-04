@@ -43,7 +43,7 @@ export function renderPlaces() {
     const m = modeOf(S.me);
     const b = (v, label) => '<button type="button" data-pmode="' + v + '" aria-pressed="' + (m === v) + '">' + label + '</button>';
     me.innerHTML = '<span class="pb-q">' + esc(S.place) + '에서 나는</span>' +
-      '<div class="seg modes" role="group" aria-label="' + esc(S.place) + ' 일정">' + b('same', esc(modeLabel('same'))) + b('own', '따로 칠하기') + b('no', '못 감') + '</div>' +
+      '<div class="seg modes" role="group" aria-label="' + esc(S.place) + ' 시간">' + b('same', esc(modeLabel('same'))) + b('own', '따로 칠하기') + b('no', '못 감') + '</div>' +
       (m ? '' : '<span class="pb-sum">아직 안 정했어요</span>') + any;
   }
 }
@@ -57,7 +57,7 @@ export function switchPlace(pl) {
 
 function note(msg) {
   const n = $('#plMsg');
-  n.textContent = msg || '쉼표로 나눠 4곳까지. 지금까지 칠한 기본 일정은 첫 번째 장소에 그대로 남아요. 다른 장소 이름을 바꾸면 그 장소에 따로 칠한 기록은 보이지 않아요.';
+  n.textContent = msg || '쉼표로 나눠 4곳까지. 지금까지 기본으로 칠한 시간은 첫 번째 장소에 그대로 남아요. 다른 장소 이름을 바꾸면 그 장소에 따로 칠한 기록은 보이지 않아요.';
   n.classList.toggle('err', !!msg);
 }
 export function editPlaces(on) {

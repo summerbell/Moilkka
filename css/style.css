@@ -273,7 +273,9 @@ h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; margin: 0; }
 
 /* meetings (top of the board) */
 .layout > .meets, .layout > .placebar { grid-column: 1 / -1; }
-.meets .sec-head { margin-bottom: 10px; }
+.mhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
+.mhead .seg button { padding: 4px 10px; font-size: 12.5px; }
+.mhead > .mini { margin-left: auto; }
 .mlist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 10px; }
 .meet { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
 .meet.hasimg { grid-template-columns: 58px minmax(0, 1fr) 76px; }
@@ -286,7 +288,31 @@ h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; margin: 0; }
 .mwhen { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .mtime { font-family: var(--f-mono); font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .dday { font-size: 11.5px; font-weight: 600; color: var(--accent); }
-.mvenue { font-weight: 600; overflow-wrap: anywhere; }
+.mtitle { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.mvenue { font-weight: 500; overflow-wrap: anywhere; }
+.mwho { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.mwho > span:first-child { margin-right: 2px; }
+.wchip { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 5px; line-height: 1.7; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); white-space: nowrap; }
+.wchip i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.wchip.me { font-weight: 600; border-color: var(--accent); }
+.wchip.left { color: var(--muted); border-style: dashed; }
+.mwhen .mtag { margin-left: 0; }
+.bpm { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.bpi { appearance: none; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 2px 8px; font-size: 12px; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+.bpi:hover { border-color: var(--accent); }
+.bpi b { font-family: var(--f-mono); font-weight: 500; margin-right: 5px; font-variant-numeric: tabular-nums; }
+.bpi.past { opacity: 0.55; }
+.pickhead { display: flex; justify-content: space-between; gap: 8px; }
+.pickhead span { font-weight: 500; }
+.whopick { display: flex; flex-wrap: wrap; gap: 6px; font-weight: 400; }
+.pick { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px 5px 8px; border-radius: 999px; border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--muted); font-size: 13px; cursor: pointer; }
+.pick i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.pick small { font-size: 11px; font-weight: 600; }
+.pick.yes small, .pick.part small { color: var(--go-ink); }
+.pick.no small { color: var(--no-ink); }
+.pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.pick[aria-pressed="true"]::before { content: "✓"; color: var(--accent); font-weight: 700; }
+.pickacts { display: flex; flex-wrap: wrap; gap: 6px; }
 .mlink { color: var(--accent); font-size: 13px; font-weight: 600; text-underline-offset: 3px; overflow-wrap: anywhere; }
 .mmemo { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .mbody .pacts, .mbody .confirm { margin-top: 4px; justify-content: flex-start; }
